@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "colab-kaggle-notebook": {
+      "command": "python",
+      "args": [
+        "D:/Antigravity_playgournd/mcp_servers/notebook_cloud_mcp.py"
+      ],
+      "env": {
+        "PYTHONIOENCODING": "utf-8"
+      }
+    },
+    "kaggle-official-remote": {
+      "url": "https://www.kaggle.com/mcp"
+    }
+  }
+}

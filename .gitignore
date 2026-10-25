@@ -1,0 +1,30 @@
+# Python Virtual Environment
+.conda/
+venv/
+.venv/
+env/
+ENV/
+
+# Environment Variables & Secrets
+.env
+*.env
+!config/.env.example
+
+# SQLite Database & Storage
+storage/events.db*
+storage/logs/*.log
+storage/logs/agent_runs/
+storage/exports/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# IDE & OS files
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
+.DS_Store

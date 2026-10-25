@@ -1,0 +1,154 @@
+{
+  "workspace_name": "Antigravity Autonomous Workspace",
+  "database_path": "storage/events.db",
+  "logs_dir": "storage/logs",
+  "orchestrator": {
+    "poll_interval_seconds": 2.0,
+    "max_validation_retries": 3,
+    "max_concurrent_tasks": 2,
+    "default_workflow": [
+      "researcher",
+      "operator",
+      "validator",
+      "communicator"
+    ]
+  },
+  "providers": {
+    "agy_headless_safe": {
+      "type": "agy_cli",
+      "executable": "agy",
+      "mode": "plan",
+      "output_format": "text",
+      "skip_permissions": false,
+      "extra_args": []
+    },
+    "agy_headless_auto": {
+      "type": "agy_cli",
+      "executable": "agy",
+      "mode": "auto",
+      "output_format": "text",
+      "skip_permissions": true,
+      "extra_args": []
+    },
+    "openai_compatible_api": {
+      "type": "http_llm",
+      "base_url": "https://api.openai.com/v1/chat/completions",
+      "api_key_env": "OPENAI_API_KEY",
+      "default_model": "gpt-4o-mini"
+    },
+    "gemini_rest_api": {
+      "type": "gemini_http",
+      "api_key_env": "GEMINI_API_KEY",
+      "default_model": "gemini-2.5-flash"
+    },
+    "custom_cli_template": {
+      "type": "custom_cli",
+      "command_template": ["python", "-m", "my_custom_agent", "--prompt", "{prompt}"]
+    },
+    "dry_run_mock": {
+      "type": "mock"
+    }
+  },
+  "roles": {
+    "researcher": {
+      "provider": "agy_headless_safe",
+      "model": "",
+      "effort": "medium",
+      "prompt_file": "roles/researcher.md",
+      "timeout_seconds": 300,
+      "description": "Gathers workspace context, reads files/docs, and prepares an implementation brief."
+    },
+    "operator": {
+      "provider": "agy_headless_auto",
+      "model": "",
+      "effort": "high",
+      "prompt_file": "roles/operator.md",
+      "timeout_seconds": 600,
+      "description": "Executes code changes, file edits, and shell commands to fulfill the task."
+    },
+    "validator": {
+      "provider": "agy_headless_auto",
+      "model": "",
+      "effort": "medium",
+      "prompt_file": "roles/validator.md",
+      "timeout_seconds": 300,
+      "description": "Verifies Operator output, runs tests/checks, and outputs PASS or FAIL with feedback."
+    },
+    "communicator": {
+      "provider": "agy_headless_safe",
+      "model": "",
+      "effort": "low",
+      "prompt_file": "roles/communicator.md",
+      "timeout_seconds": 120,
+      "description": "Synthesizes task context and results into a clean user-facing message for Discord/Zalo/Messenger."
+    },
+    "workspace_watcher": {
+      "provider": "agy_headless_safe",
+      "model": "",
+      "effort": "low",
+      "prompt_file": "roles/workspace_watcher.md",
+      "timeout_seconds": 180,
+      "description": "Analyzes workspace anomalies, stuck tasks, or unexpected file changes when triggered by the internal daemon."
+    },
+    "world_watcher": {
+      "provider": "agy_headless_safe",
+      "model": "",
+      "effort": "low",
+      "prompt_file": "roles/world_watcher.md",
+      "timeout_seconds": 180,
+      "description": "Evaluates new outside-world events (RSS/APIs/webhooks) and decides whether to spawn a workspace task or alert the user."
+    }
+  },
+  "watchers": {
+    "workspace": {
+      "enabled": true,
+      "check_interval_seconds": 30,
+      "stuck_task_threshold_seconds": 900,
+      "ignored_dirs": [".git", "__pycache__", "storage", ".venv", "node_modules"]
+    },
+    "world": {
+      "enabled": true,
+      "check_interval_seconds": 300,
+      "sources": [
+        {
+          "name": "hn_top_rss",
+          "type": "rss",
+          "url": "https://news.ycombinator.com/rss",
+          "keywords": ["ai", "agent", "llm", "antigravity", "python"],
+          "enabled": false
+        },
+        {
+          "name": "custom_json_api",
+          "type": "json_api",
+          "url": "https://api.github.com/repos/google-gemini/gemini-cli/releases/latest",
+          "enabled": false
+        }
+      ]
+    }
+  },
+  "gateways": {
+    "webhook_server": {
+      "enabled": true,
+      "host": "127.0.0.1",
+      "port": 8080
+    },
+    "discord": {
+      "enabled": true,
+      "webhook_url_env": "DISCORD_WEBHOOK_URL",
+      "bot_token_env": "DISCORD_BOT_TOKEN",
+      "default_channel_id_env": "DISCORD_CHANNEL_ID"
+    },
+    "zalo": {
+      "enabled": false,
+      "oa_access_token_env": "ZALO_OA_ACCESS_TOKEN",
+      "oa_secret_key_env": "ZALO_OA_SECRET_KEY",
+      "default_recipient_id_env": "ZALO_DEFAULT_USER_ID"
+    },
+    "messenger": {
+      "enabled": false,
+      "page_access_token_env": "MESSENGER_PAGE_ACCESS_TOKEN",
+      "verify_token_env": "MESSENGER_VERIFY_TOKEN",
+      "default_recipient_id_env": "MESSENGER_DEFAULT_USER_ID"
+    }
+  }
+}
