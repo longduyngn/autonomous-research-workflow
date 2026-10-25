@@ -57,6 +57,26 @@ class DiscordBotRunner:
             print(f"    1. `!task <prompt>` in any accessible channel")
             print(f"    2. `@assistance <prompt>` mention in any channel")
             print(f"    3. Direct Message (DM) to {bot.user.name}")
+            bot.loop.create_task(heartbeat_loop())
+
+        async def heartbeat_loop() -> None:
+            hb_path = Path("storage/bot_heartbeat.json")
+            hb_path.parent.mkdir(parents=True, exist_ok=True)
+            import json, time
+            while not bot.is_closed():
+                try:
+                    data = {
+                        "status": "listening",
+                        "bot_user": f"{bot.user.name}#{bot.user.discriminator}",
+                        "bot_id": str(bot.user.id),
+                        "guilds": [g.name for g in bot.guilds],
+                        "pid": os.getpid(),
+                        "timestamp": time.time(),
+                    }
+                    hb_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+                except Exception:
+                    pass
+                await asyncio.sleep(5)
 
         @bot.event
         async def on_message(message: discord.Message) -> None:

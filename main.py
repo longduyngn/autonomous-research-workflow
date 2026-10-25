@@ -345,6 +345,9 @@ def main() -> None:
     p_bot.add_argument("--provider", default=None, help="Override provider for all roles")
     p_bot.set_defaults(func=cmd_discord_bot)
 
+    p_check_bot = sub.add_parser("check-bot", help="Check whether the Discord bot is active and listening")
+    p_check_bot.set_defaults(func=lambda args: __import__("scripts.check_bot", fromlist=["check_bot_status"]).check_bot_status())
+
     p_status = sub.add_parser("status", help="Inspect role mappings, tasks, and SQLite events")
     p_status.add_argument("--limit", type=int, default=15, help="Number of recent events to display")
     p_status.set_defaults(func=cmd_status)
