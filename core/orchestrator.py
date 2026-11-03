@@ -407,6 +407,11 @@ class HybridOrchestrator:
                 task,
                 reason=f"Operator execution failed: {result.error or 'non-zero exit code'}",
             )
+        if re.search(r"(?im)^\s*BLOCKED(?:\s*:|\s*$|\s+-)", result.output):
+            return self._handle_retry_or_escalate(
+                task,
+                reason=f"Operator reported blocked execution: {result.output[:500]}",
+            )
 
         self.db.update_task(task.id, operator_output=result.output)
         review=re.search(r'^RESEARCH_REVIEW: (.+)$',result.output,re.MULTILINE)
@@ -538,9 +543,9 @@ class HybridOrchestrator:
         updated = self.db.finalize_task(task.id, final_state.value, final_message, expected_feedback_revision=task.feedback_revision)
         if updated.status not in {'COMPLETED', 'ESCALATED', 'FAILED'}:
             return updated
-        self._context(updated)
         from core.reports import write_task_summary, write_board
         try:
+            self._context(updated)
             write_task_summary(self.db, updated)
             write_board(self.db, self.db.db_path.parent / 'TASKS.md')
         except (OSError, ValueError) as exc:

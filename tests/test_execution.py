@@ -79,3 +79,29 @@ else: print('Completed; result.txt contains 42')
             self.assertEqual(final.status, "COMPLETED")
             self.assertNotIn("operator", runner.calls)
             self.assertIn("validator", runner.calls)
+
+    def test_blocked_exit_zero_worker_cannot_pass_delegation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            agent = root / "blocked_fixture.py"
+            agent.write_text('''import sys, json
+role = sys.argv[1]
+if role == 'researcher':
+    print('```research_plan\\n' + json.dumps({'mode': 'direct', 'checks': [{'argv': ['{python}', '-c', 'print("ok")']}]}) + '\\n```')
+elif role == 'operator':
+    print('BLOCKED: Blocked before inspection by the local execution environment (windows sandbox: setup refresh had errors).')
+else:
+    print('VERDICT: PASS\\nEvidence: should never be reached')
+''', encoding="utf-8")
+            cfg = {
+                "isolation": {"enabled": False},
+                "orchestrator": {"max_attempts": 1},
+                "providers": {"fixture": {"type": "custom_cli", "command_template": [sys.executable, str(agent), "{role}", "{prompt_file}"]}},
+                "roles": {r: {"provider": "fixture"} for r in ["researcher", "operator", "validator", "communicator"]},
+            }
+            db = WorkspaceDatabase(root / "storage/db.sqlite")
+            orch = HybridOrchestrator(root, cfg, db, ContextLogManager(root / "storage/logs"), EphemeralAgentRunner(root, cfg))
+            task = orch.submit_task("Must fail closed when operator is blocked despite exit 0")
+            final = orch.run_task_to_completion(task.id)
+            self.assertEqual(final.status, "ESCALATED")
+            self.assertIn("blocked", final.validation_feedback.lower())

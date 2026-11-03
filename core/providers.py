@@ -1,6 +1,7 @@
 """Interchangeable CLI agents and bounded OpenAI-compatible tool loops."""
 import json
 import os
+import re
 import sys
 import time
 import uuid
@@ -166,7 +167,9 @@ class EphemeralAgentRunner:
         elif kind != "custom_cli" and role in ACTION_ROLES:
             raise ValueError("Native execution roles require a prepared isolated task integration bundle")
         if kind == "agy_cli":
-            mode = provider.get("mode") or ("auto" if writable or role == "validator" else "plan")
+            mode = provider.get("mode") or ("accept-edits" if writable or role == "validator" else "plan")
+            if mode == "auto":
+                mode = "accept-edits"
             cmd = [resolved, "--mode", mode,
                    "--output-format", "json", "--effort", effort,
                    "--log-file", str(log)]
@@ -181,6 +184,15 @@ class EphemeralAgentRunner:
             cmd += ["-p", f"Read {prompt_file} and carry out its assigned {role} step. Workspace: {self.workspace_root}"]
             input_text = None
         elif kind == "codex_cli":
+            # Packaged Windows CLIs may not discover the profile even when
+            # Python can. Use one home for both policy inspection and execution;
+            # never copy auth/config or silently switch to an empty task home.
+            profile_home = Path.home()
+            codex_home = Path(provider.get("codex_home") or os.environ.get("CODEX_HOME")
+                              or profile_home / ".codex").expanduser()
+            if not codex_home.is_absolute():
+                codex_home = self.workspace_root / codex_home
+            codex_home = codex_home.resolve()
             cmd = [resolved, "exec", *(["resume"] if session else []), "--json",
                    "--skip-git-repo-check", "--output-last-message", str(final_file),
                    "-c", f'model_reasoning_effort="{effort}"']
@@ -192,7 +204,7 @@ class EphemeralAgentRunner:
                 cmd += ["--sandbox", "read-only"]
             if manifest:
                 import tomllib
-                user = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex")))
+                user = codex_home
                 global_config = user / "config.toml"
                 settings = tomllib.loads(global_config.read_text(encoding="utf-8")) if global_config.exists() else {}
                 if (user / "hooks.json").exists() or settings.get("hooks"):
@@ -247,6 +259,12 @@ class EphemeralAgentRunner:
         env["WORKFLOW_RUN_ID"] = uuid.uuid4().hex
         env["WORKFLOW_RUN_LABEL"] = getattr(self, "run_label", role)
         env.update(getattr(self,'control_environment',{}))
+        if kind == "codex_cli":
+            # Apply after control_environment so the checked policy home cannot
+            # diverge from the home actually loaded by the child CLI.
+            env["CODEX_HOME"] = str(codex_home)
+            if not env.get("HOME"):
+                env["HOME"] = str(profile_home)
         if kind == "opencode_cli":
             permissions = {"*": "deny", "read": "allow", "glob": "allow", "grep": "allow",
                            "list": "allow", "webfetch": "allow", "websearch": "allow", "skill": "allow",
@@ -270,6 +288,20 @@ class EphemeralAgentRunner:
         stdout_file, stderr_file = log.with_suffix(".stdout.log"), log.with_suffix(".stderr.log")
         result = run_process(cmd, self.workspace_root, timeout=timeout, env=env, input_text=input_text,
                              cancel_event=self.cancel_event, stdout_path=stdout_file, stderr_path=stderr_file)
+        if kind == "codex_cli":
+            for _ in range(2):
+                combined_initial = f"{result['stdout']}\n{result['stderr']}".lower()
+                if result["exit_code"] and "selected model is at capacity" in combined_initial and '"type":"command_execution"' not in result["stdout"] and '"type":"file_change"' not in result["stdout"]:
+                    time.sleep(3)
+                    env["WORKFLOW_RUN_ID"] = uuid.uuid4().hex
+                    if native_hooks:
+                        run_process([sys.executable, str(self.instructions_root / "scripts/agent_hooks.py"),
+                            "--provider", "codex", "--event", "RoleStart", "--workspace", str(self.workspace_root)],
+                            self.workspace_root, timeout=10, env=env, input_text="{}")
+                    result = run_process(cmd, self.workspace_root, timeout=timeout, env=env, input_text=input_text,
+                                         cancel_event=self.cancel_event, stdout_path=stdout_file, stderr_path=stderr_file)
+                else:
+                    break
         # Custom test runners may return output without writing the optional streams.
         for path, key in ((stdout_file, "stdout"), (stderr_file, "stderr")):
             if not path.exists():
@@ -294,6 +326,11 @@ class EphemeralAgentRunner:
                         result['exit_code'] = result['exit_code'] or 1
             except ValueError:
                 pass  # Older CLIs retain portable memory even without native IDs.
+            if kind == "agy_cli" and not evidence.get("session_id") and log.exists():
+                log_text = log.read_text(encoding="utf-8", errors="replace")
+                match = re.search(r"(?:conversation=|Created conversation )([0-9a-fA-F-]{36})\b", log_text)
+                if match:
+                    evidence["session_id"] = match.group(1)
         if kind == "codex_cli":
             # Session files may be ephemeral; preserve the provider ID in our index.
             with stdout_file.open(encoding="utf-8") as stream:
@@ -304,6 +341,8 @@ class EphemeralAgentRunner:
                         continue
                     if event.get("type") == "thread.started":
                         evidence["session_id"] = event.get("thread_id", "")
+                    elif event.get("type") == "turn.completed" and isinstance(event.get("usage"), dict):
+                        evidence["usage"] = event["usage"]
         opencode_error = None
         if kind == "opencode_cli":
             chunks = []
@@ -328,7 +367,7 @@ class EphemeralAgentRunner:
             evidence["native_hook_events"] = [record["event"] for record in records if record["event"] != "RoleStart"]
             evidence["native_tools"] = [record["tool"] for record in records if record["event"] == "PreToolUse"]
             evidence["native_mcp_tools"] = [record["mcp_tool"] for record in records if record["event"] == "PreToolUse" and record.get("mcp_tool")]
-            if "SessionStart" not in evidence["native_hook_events"]:
+            if "SessionStart" not in evidence["native_hook_events"] and not (kind == "agy_cli" and session and evidence["native_hook_events"]):
                 hook_error = "CLI did not execute its required native SessionStart hook; inspect native config/trust and stderr log"
         cli_error = opencode_error
         if result['exit_code']:
@@ -336,6 +375,15 @@ class EphemeralAgentRunner:
                 cli_error = 'CLI authentication required in this execution environment; defer until the user can sign in or approve using the authenticated environment.'
             else:
                 cli_error = result['stderr'] or f"CLI exited with code {result['exit_code']}"
+        elif role in ACTION_ROLES:
+            combined = f"{out}\n{result['stdout']}\n{result['stderr']}".lower()
+            if (re.search(r"(?im)^\s*blocked(?:\s*:|\s*$|\s+-)", out)
+                    or any(marker in combined for marker in (
+                        "blocked before inspection by the local execution environment",
+                        "helper_unknown_error: setup refresh had errors",
+                        "windows sandbox: setup refresh had errors",
+                    ))):
+                cli_error = "Worker reported blocked execution or sandbox failure despite exit code 0"
         # A CLI which never authenticated cannot reach hooks. Report its actual
         # startup failure before secondary missing-hook symptoms.
         return AgentRunResult(role, name, result["exit_code"] == 0 and bool(out.strip()) and not hook_error and not cli_error, out.strip(),

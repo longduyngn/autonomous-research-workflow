@@ -2,7 +2,9 @@
   "coordinator": {
     "requested_model": "agon 4",
     "execution": "current_agent",
-    "binding_status": "user_must_select_or_verify_in_host",
+    "model": "gemini-4-argon-medium",
+    "label": "Gemini 4 Argon (Medium)",
+    "binding_status": "verified_in_host_and_agy_models_catalog",
     "role": "hard work without approval, planning and independent review"
   },
   "codex_medium": {
@@ -10,17 +12,18 @@
     "provider": "codex_cli",
     "model": "gpt-6.1-sol",
     "effort": "medium",
-    "catalog_status": "present_in_local_metadata_cache",
-    "live_execution_status": "nested_tool_sandbox_blocked",
+    "catalog_status": "verified_in_local_codex_models_cache",
+    "live_execution_status": "pending_host_session_verification",
     "approval_mode": "auto_review_with_existing_sandbox_and_hooks"
   },
   "agy_flash": {
     "requested_model": "agy flash 3.8",
     "provider": "agy_headless_auto",
+    "model": "gemini-3.8-flash-low",
     "model_env": "RALPH_AGY_FLASH_MODEL",
     "effort": "low",
-    "catalog_status": "unverified_do_not_guess_or_substitute",
-    "live_execution_status": "auth_timeout",
+    "catalog_status": "verified_via_agy_models_catalog",
+    "live_execution_status": "pending_host_session_verification",
     "approval_mode": "auto_for_authorized_workspace_actions_keep_native_controls"
   }
 }

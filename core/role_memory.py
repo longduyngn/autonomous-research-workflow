@@ -8,6 +8,7 @@ from pathlib import Path
 
 
 def atomic_json(path, value):
+    import time
     import uuid
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -16,7 +17,21 @@ def atomic_json(path, value):
         json.dump(value, f, ensure_ascii=False, indent=2)
         f.flush()
         os.fsync(f.fileno())
-    os.replace(tmp, path)
+    for attempt in range(10):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            try:
+                if path.exists():
+                    os.chmod(path, 0o666)
+            except OSError:
+                pass
+            if attempt == 9:
+                path.write_text(tmp.read_text(encoding='utf-8'), encoding='utf-8')
+                tmp.unlink(missing_ok=True)
+                return
+            time.sleep(0.05 * (attempt + 1))
 
 
 class RoleMemory:
