@@ -1,0 +1,17 @@
+{
+  "task_id": "A00",
+  "review_passed": false,
+  "status": "source_verified",
+  "checks": [
+    {
+      "command": "REPLACE_WITH_ACTUAL_COMMAND_OR_EVIDENCE_REVIEW",
+      "exit_code": null,
+      "passed": false
+    }
+  ],
+  "evidence_refs": [
+    "REPLACE_WITH_REAL_ARTIFACT"
+  ],
+  "reviewer": "coordinator",
+  "note": "Template only; false values intentionally prevent recording unverified completion"
+}

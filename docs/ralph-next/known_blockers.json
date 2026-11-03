@@ -1,0 +1,30 @@
+{
+  "not_approval_grants": true,
+  "items": [
+    {
+      "task_id": "A01",
+      "kind": "model_binding",
+      "reason": "agy flash 3.8 and coordinator agon 4 exact runtime IDs unresolved; no substitution authorized"
+    },
+    {
+      "task_id": "B02",
+      "kind": "native_tool_environment",
+      "reason": "Codex native authentication/static review succeeded but nested shell/file sandbox failed"
+    },
+    {
+      "task_id": "B03",
+      "kind": "authentication_or_transport",
+      "reason": "AGY headless auth error and later 600s timeout; no usable implementation patch"
+    },
+    {
+      "task_id": "I03",
+      "kind": "resource",
+      "reason": "Docker CLI/Compose present; daemon unavailable; no build/run proof"
+    },
+    {
+      "task_id": "D04",
+      "kind": "human_resource_setup",
+      "reason": "An explicitly private durable mount and dedicated Colab runtime window need verification before live VM-loss probe"
+    }
+  ]
+}

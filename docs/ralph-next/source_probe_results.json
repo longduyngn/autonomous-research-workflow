@@ -1,0 +1,85 @@
+{
+  "observed_at_utc": "2026-11-03T04:44:00.942345+00:00",
+  "baseline_root": "C:\\Users\\PC\\.codex\\worktrees\\cf5a\\Antigravity_playgournd",
+  "scope": "Offline probes of active worktree only; no external calls or credentials",
+  "verdict_parser": {
+    "empty": {
+      "input": "",
+      "accepted_as_pass": true
+    },
+    "unable_to_verify": {
+      "input": "Unable to verify the output.",
+      "accepted_as_pass": true
+    },
+    "pass_without_evidence": {
+      "input": "VERDICT: PASS",
+      "accepted_as_pass": true
+    },
+    "contradictory": {
+      "input": "VERDICT: PASS\nVERDICT: FAIL\nBroken output.",
+      "accepted_as_pass": true
+    },
+    "quoted_pass_then_real_fail": {
+      "input": "Example: \"VERDICT: PASS\"\nVERDICT: FAIL\nBroken output.",
+      "accepted_as_pass": true
+    },
+    "explicit_fail": {
+      "input": "VERDICT: FAIL\nBroken output.",
+      "accepted_as_pass": false
+    }
+  },
+  "validator_transport_errors": {
+    "validator_calls": 3,
+    "operator_calls": 3,
+    "terminal_state": "COMPLETED",
+    "feedback": "Validator execution error: timeout",
+    "explanation": "All validator invocations failed with timeout; no real validation occurred"
+  },
+  "duplicate_task_selection": {
+    "first_reader": [
+      2
+    ],
+    "second_reader": [
+      2
+    ],
+    "same_pending_task_visible_to_both": true,
+    "boundary": "Sequential reads demonstrate non-claiming selection, not a concurrency stress test"
+  },
+  "notebook_execution": {
+    "status": "executed",
+    "runtime_mode": "local_python_kernel (use `colab-mcp` for live browser Colab VM)",
+    "cells_executed": 4,
+    "cell_results": [
+      {
+        "cell_index": 0,
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "cell_index": 1,
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nNameError: name 'x' is not defined\n"
+      },
+      {
+        "cell_index": 2,
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nRuntimeError: intentional offline probe\n"
+      },
+      {
+        "cell_index": 3,
+        "exit_code": 0,
+        "stdout": "AFTER_FAILURE\n",
+        "stderr": ""
+      }
+    ],
+    "boundary": "Real local Python processes on four tiny cells; no Jupyter or Colab connection"
+  },
+  "missing_kaggle_credentials": {
+    "tool_status": "missing_credentials",
+    "mcp_isError": false,
+    "boundary": "Credential resolution replaced with a fake returning None; no credential files accessed"
+  }
+}

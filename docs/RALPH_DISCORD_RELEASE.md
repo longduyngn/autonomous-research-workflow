@@ -5,6 +5,8 @@ updates, real Antigravity/Codex headless delegation, tests, a source Git commit,
 and Discord notifications before pausing for a real user-origin message test.
 
 Sequential checkpoints:
+Current user-level completion is tracked in USER_TASK_STATUS.md. Checked items
+below describe completed source/attempt/evidence steps, not live production signoff.
 - [x] Repair Unicode corruption in operational notifications; make completion
       notices explicit about whether human action is required (user report #29).
 - [x] Audit report claims and actual task/session evidence against reference.

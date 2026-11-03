@@ -1,0 +1,16 @@
+{
+  "task_count": 44,
+  "files_sha256": {
+    "docs/ralph-next/known_blockers.json": "13d5b66a9f21989aedea02c04348a8c1b6bfd945c12b77926fea0e40e9e0f141",
+    "docs/ralph-next/profiles.json": "16c3f9073173b353001ca5966ae74e31ebea1aae51ed069cc3025bca773992c7",
+    "docs/ralph-next/review_record.example.json": "a9075207ac9275db58d8192c8b8fc04a657113347cf2911eda2140aace2278a9",
+    "docs/ralph-next/source_probe_results.json": "b7e66e8f2a899aea22dee7371d0fc7094627bfd5b01beb3db5a73e6aab1f60cb",
+    "docs/ralph-next/source_provenance.json": "45a20696e7aba2d4944a0fd76465bc621f3b4d2bbc24b6db3bdc030360b0926f",
+    "docs/ralph-next/START_HERE.md": "9d7de13e01e052821ecb30c1d9d258b5d699f9fcc1b7b4e6c6dad87a833abe12",
+    "docs/ralph-next/START_PROMPT.md": "7431a926a3b84946cf7ba06131564380e895e24cbdac6388bc139f16b704b392",
+    "docs/ralph-next/tasks.json": "a37321706861191d7d35b5aeb6bca03d88336bd070ce6eaeb5acd2e29f18f3ae",
+    "scripts/ralph_next.py": "784c20ddfe95374551fde607a89f230bdda1d2ecbd7464b3657489d93b2e1ff3"
+  },
+  "native_jobs_started_during_packaging": 0,
+  "contains_credentials": false
+}

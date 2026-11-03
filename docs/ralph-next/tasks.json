@@ -1,0 +1,859 @@
+{
+  "schema": 1,
+  "baseline": "ef961d9 plus existing dirty documentation; refresh before work",
+  "max_workers": 2,
+  "task_count": 44,
+  "tasks": [
+    {
+      "id": "A00",
+      "title": "Reconcile source, history and every user requirement",
+      "profile": "coordinator",
+      "depends_on": [],
+      "allowed_paths": [
+        "docs",
+        "storage/ralph-discord-release"
+      ],
+      "acceptance": "Produce source/fixture/live status matrix; distinguish C/F/R and preserve dirty changes.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "A01",
+      "title": "Verify exact model bindings and permissions",
+      "profile": "coordinator",
+      "depends_on": [
+        "A00"
+      ],
+      "allowed_paths": [
+        "docs/ralph-next/profiles.json"
+      ],
+      "acceptance": "Confirm local catalog and effective host model; unresolved requested aliases go to queue, never defaults.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 180,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "B01",
+      "title": "Repair and prove portable hook launcher",
+      "profile": "agy_flash",
+      "depends_on": [
+        "A01"
+      ],
+      "allowed_paths": [
+        "scripts/setup_hooks.py",
+        "tests/test_integrations.py"
+      ],
+      "acceptance": "Actual configured harmless hook succeeds from repo and .agents cwd without weakening policy.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 180,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "B02",
+      "title": "Fix Codex home and nested tool execution",
+      "profile": "codex_medium",
+      "depends_on": [
+        "A01"
+      ],
+      "allowed_paths": [
+        "core/providers.py",
+        "core/processes.py",
+        "tests/test_providers.py"
+      ],
+      "acceptance": "Real requested model reads a fixture, writes result and runs a check; no sandbox bypass; auth-only success is insufficient.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 180,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "B03",
+      "title": "Fix AGY authentication and native tool execution",
+      "profile": "codex_medium",
+      "depends_on": [
+        "A01",
+        "B02"
+      ],
+      "allowed_paths": [
+        "core/providers.py",
+        "core/executables.py"
+      ],
+      "acceptance": "Bounded native probe reads/writes/runs fixture with native receipts; login-dependent actions queued.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 180,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "B04",
+      "title": "Gate delegation completion on artifacts and checks",
+      "profile": "codex_medium",
+      "depends_on": [
+        "A00"
+      ],
+      "allowed_paths": [
+        "core/providers.py",
+        "core/orchestrator.py",
+        "tests/test_execution.py"
+      ],
+      "acceptance": "Worker exit 0 plus blocked/no-work answer cannot count as successful implementation.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "C01",
+      "title": "Verify per-task role session identity and exact resume",
+      "profile": "codex_medium",
+      "depends_on": [
+        "A00"
+      ],
+      "allowed_paths": [
+        "core/providers.py",
+        "core/role_memory.py",
+        "tests/test_resumable.py"
+      ],
+      "acceptance": "Researcher/operator/validator reuse IDs across successful wakes and isolate tasks; omission does not erase ID.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "C02",
+      "title": "Verify shared communicator without cross-user memory leakage",
+      "profile": "coordinator",
+      "depends_on": [
+        "C01"
+      ],
+      "allowed_paths": [
+        "core/orchestrator.py",
+        "core/conversation.py",
+        "tests/test_conversation.py"
+      ],
+      "acceptance": "One user/guild cache spans reports/chat and tasks; another user cannot see history or task data.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "C03",
+      "title": "Audit reference overflow policy and portable handover",
+      "profile": "coordinator",
+      "depends_on": [
+        "A00"
+      ],
+      "allowed_paths": [
+        "core/role_memory.py",
+        "docs"
+      ],
+      "acceptance": "Compare ref context_tokens/HANDOVER; facts fresh each wake, bounded tails, explicit rotation reasons.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "C04",
+      "title": "Exercise context rotation, lost session and provider swap",
+      "profile": "codex_medium",
+      "depends_on": [
+        "C01",
+        "C03"
+      ],
+      "allowed_paths": [
+        "core/providers.py",
+        "core/role_memory.py",
+        "tests/test_resumable.py"
+      ],
+      "acceptance": "Handover reconstructs next action after rotation/provider change; no unsafe effect replay on lost session.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "C05",
+      "title": "Prove real multi-wake session continuity",
+      "profile": "codex_medium",
+      "depends_on": [
+        "B02",
+        "B03",
+        "C01",
+        "C04"
+      ],
+      "allowed_paths": [
+        "scripts/verify_workflow.py"
+      ],
+      "acceptance": "Actual native IDs and command receipts show repeated wakes/resume and forced bounded rotation.",
+      "live_gate": true,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "D01",
+      "title": "Audit checkpoint safe-boundary state contract",
+      "profile": "coordinator",
+      "depends_on": [
+        "A00"
+      ],
+      "allowed_paths": [
+        "core/checkpoints.py",
+        "roles/operator.md",
+        "docs/CHECKPOINTS.md"
+      ],
+      "acceptance": "Cover model, optimizer, scheduler/scaler, RNG, step/data cursor and code/data/config hashes; durable destination explicit.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "D02",
+      "title": "Verify atomic publication and compatible fresh restore",
+      "profile": "codex_medium",
+      "depends_on": [
+        "D01"
+      ],
+      "allowed_paths": [
+        "core/checkpoints.py",
+        "core/cloud.py",
+        "tests/test_checkpoints.py"
+      ],
+      "acceptance": "Interrupted/corrupt snapshots ignored; mismatched provenance rejected; restore never overwrites user state.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "D03",
+      "title": "Verify periodic integration and restart from actual saved state",
+      "profile": "codex_medium",
+      "depends_on": [
+        "D02"
+      ],
+      "allowed_paths": [
+        "core/integrations.py",
+        "tests/test_checkpoints.py"
+      ],
+      "acceptance": "Real child-process death and new-process resume match uninterrupted deterministic baseline; preserve logs.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "D04",
+      "title": "Prepare explicit private durable Colab destination",
+      "profile": "coordinator",
+      "depends_on": [
+        "D01"
+      ],
+      "allowed_paths": [
+        "docs/CHECKPOINTS.md",
+        "scripts"
+      ],
+      "acceptance": "Validate destination without printing tokens/public publication; mount/login/approval steps prepared and queued.",
+      "live_gate": true,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "D05",
+      "title": "Run controlled live Colab loss and restore probe",
+      "profile": "codex_medium",
+      "depends_on": [
+        "D03",
+        "D04",
+        "G02"
+      ],
+      "allowed_paths": [
+        "scripts",
+        "docs/CHECKPOINTS.md"
+      ],
+      "acceptance": "Use dedicated authorized runtime only; state survives its loss and restores on new runtime; verify shutdown and no overlap.",
+      "live_gate": true,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "E01",
+      "title": "Complete conservative intake and clarification contract",
+      "profile": "coordinator",
+      "depends_on": [
+        "A00"
+      ],
+      "allowed_paths": [
+        "core/conversation.py",
+        "roles/communicator.md"
+      ],
+      "acceptance": "Questions do not create tasks; explicit requests/confirmed clarification link correctly; define multi-intent handling without guessing.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "E02",
+      "title": "Verify duplicate/reply/retry/feedback revisions",
+      "profile": "codex_medium",
+      "depends_on": [
+        "E01"
+      ],
+      "allowed_paths": [
+        "core/conversation.py",
+        "core/database.py",
+        "tests/test_conversation.py"
+      ],
+      "acceptance": "Exact-ID dedup, explicit rerun allowed, immutable original request, applied/pending feedback boundary and finalization race covered.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "E03",
+      "title": "Verify exactly three Discord channel roles and env sync",
+      "profile": "agy_flash",
+      "depends_on": [
+        "A01",
+        "E01"
+      ],
+      "allowed_paths": [
+        "core/discord_channels.py",
+        "gateways/discord_bot.py",
+        "tests/test_discord_channels.py"
+      ],
+      "acceptance": "Task-proposal chat/clarification/!task; approval-only channel; requested-only logs; guild/category scoping and secret-preserving atomic env updates.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "E04",
+      "title": "Audit all outgoing response ownership and outbox revisions",
+      "profile": "codex_medium",
+      "depends_on": [
+        "A00"
+      ],
+      "allowed_paths": [
+        "core/database.py",
+        "core/conversation.py",
+        "gateways/base.py",
+        "gateways/discord_bot.py",
+        "tests/test_conversation_delivery.py"
+      ],
+      "acceptance": "Handler/heartbeat and stale ACK races cannot double-finish current revision; retained retries do not silently drop newer results.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "E05",
+      "title": "Verify Unicode and notification action clarity",
+      "profile": "agy_flash",
+      "depends_on": [
+        "A01",
+        "E04"
+      ],
+      "allowed_paths": [
+        "tests/test_notification_unicode.py",
+        "docs"
+      ],
+      "acceptance": "Round-trip UTF-8 through DB/JSON; no unspecified shell pipes generating localized source; no-action notices explicit; no repeat pings.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "F01",
+      "title": "Verify researcher event coverage and bounded budgets",
+      "profile": "coordinator",
+      "depends_on": [
+        "A00"
+      ],
+      "allowed_paths": [
+        "core/orchestrator.py",
+        "core/models.py",
+        "tests/test_research_events.py"
+      ],
+      "acceptance": "Milestone/feedback/repeated failure/unexpected result and stall policy explicit; no model call for every stdout/poll.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "F02",
+      "title": "Preserve accepted criteria and verified prefixes on replans",
+      "profile": "codex_medium",
+      "depends_on": [
+        "F01"
+      ],
+      "allowed_paths": [
+        "core/orchestrator.py",
+        "core/plans.py",
+        "roles/validator.md"
+      ],
+      "acceptance": "Backend/checks/verified prefix survive replan; attempt/time budgets not reset; distinguish suggestions from requirements.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "F03",
+      "title": "Exercise unexpected-result intervention in a real task",
+      "profile": "codex_medium",
+      "depends_on": [
+        "B02",
+        "F02"
+      ],
+      "allowed_paths": [
+        "scripts/verify_workflow.py"
+      ],
+      "acceptance": "Nontrivial fixture emits genuine controlled divergence; researcher changes strategy, operator repairs and validator verifies.",
+      "live_gate": true,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "G01",
+      "title": "Verify durable waits and independent active/wait deadlines",
+      "profile": "codex_medium",
+      "depends_on": [
+        "A00"
+      ],
+      "allowed_paths": [
+        "core/control.py",
+        "core/database.py",
+        "core/scheduler.py",
+        "tests/test_waits.py"
+      ],
+      "acceptance": "Two waiting tasks release slots; restart preserves waits; no operator replay just to poll; stale leases reconciled.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "G02",
+      "title": "Verify Colab fencing, unknown state and shutdown ownership",
+      "profile": "codex_medium",
+      "depends_on": [
+        "G01"
+      ],
+      "allowed_paths": [
+        "core/resource_gate.py",
+        "core/colab_bridge.py",
+        "tests/test_resource_gate.py"
+      ],
+      "acceptance": "Owner/generation checked across managed browser/MCP operations; close under lock; unknown/live runtime never handed to new owner.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "G03",
+      "title": "Verify exact actor/action/revision approvals and deferred queue",
+      "profile": "codex_medium",
+      "depends_on": [
+        "G01"
+      ],
+      "allowed_paths": [
+        "core/approvals.py",
+        "core/control.py",
+        "scripts/agent_hooks.py",
+        "tests/test_approvals.py"
+      ],
+      "acceptance": "Wrong/stale/expired/replayed approval denied; uncertain consumed effect reconciled; auto routine work never self-approves protected operations.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "G04",
+      "title": "Verify crash around submission/export/validation/report",
+      "profile": "codex_medium",
+      "depends_on": [
+        "G01",
+        "G02",
+        "G03",
+        "E04"
+      ],
+      "allowed_paths": [
+        "core/cloud.py",
+        "core/orchestrator.py",
+        "tests/test_recovery_evidence.py"
+      ],
+      "acceptance": "Distinguish submitted/running/downloaded/validated/reported; API failure not stopped VM; no blind duplicate submission.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "H01",
+      "title": "Audit CLI/API provider replaceability and permissions",
+      "profile": "coordinator",
+      "depends_on": [
+        "A00"
+      ],
+      "allowed_paths": [
+        "core/providers.py",
+        "core/provider_registry.py",
+        "core/tools.py"
+      ],
+      "acceptance": "Native adapters and tool-capable API interchange per role; plugin explicit, text-only worker rejected; model quality not assumed.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "H02",
+      "title": "Consolidate configuration validation and verdict protocol",
+      "profile": "agy_flash",
+      "depends_on": [
+        "A01",
+        "H01"
+      ],
+      "allowed_paths": [
+        "main.py",
+        "core/configuration.py",
+        "roles/validator.md",
+        "tests/test_workflow.py"
+      ],
+      "acceptance": "Legacy/current CLI reject invalid mappings equally; preserve fail-closed verdict or implement separately validated structured contract.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "H03",
+      "title": "Verify disabled rented GPU and SSH extension lifecycle",
+      "profile": "coordinator",
+      "depends_on": [
+        "A00"
+      ],
+      "allowed_paths": [
+        "core/compute.py",
+        "core/plans.py",
+        "docs/COMPUTE_EXTENSIONS.md"
+      ],
+      "acceptance": "Shadeform/VastAI/Runpod/SSH seam has request identity, observe/stop/download, caps and checkpoints; no provisioning requirement now.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "I01",
+      "title": "Verify cross-platform runtime and browser paths",
+      "profile": "codex_medium",
+      "depends_on": [
+        "A00"
+      ],
+      "allowed_paths": [
+        "core/portability.py",
+        "core/colab_bridge.py",
+        "scripts/setup_colab_runtime.py",
+        "tests/test_portability.py"
+      ],
+      "acceptance": "Scripts/bin and Lib/lib layouts work; CHROME_PATH/COLAB_BROWSER honored; host-local venv not claimed relocatable.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "I02",
+      "title": "Verify container build context and secret exclusion",
+      "profile": "agy_flash",
+      "depends_on": [
+        "A01",
+        "I01"
+      ],
+      "allowed_paths": [
+        "Dockerfile",
+        "compose.yaml",
+        ".dockerignore",
+        "docs/CONTAINERS.md"
+      ],
+      "acceptance": "No env/token/runtime/auth data in image context; explicit CPU controller and external browser/auth limitations.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "I03",
+      "title": "Build and smoke container on an available Linux engine",
+      "profile": "codex_medium",
+      "depends_on": [
+        "I02"
+      ],
+      "allowed_paths": [
+        "Dockerfile",
+        "compose.yaml",
+        "docs/CONTAINERS.md"
+      ],
+      "acceptance": "Actual build/start/doctor/dashboard succeeds with declared deps; missing engine queued instead of claimed success.",
+      "live_gate": true,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "J01",
+      "title": "Verify dashboard and headless run/session organization",
+      "profile": "agy_flash",
+      "depends_on": [
+        "A01",
+        "C01",
+        "G01"
+      ],
+      "allowed_paths": [
+        "core/observability.py",
+        "ui",
+        "tests/test_readiness.py"
+      ],
+      "acceptance": "Stages/waits/revisions/session IDs/logs present; desktop/mobile render, no JS/overflow; dashboard read-only.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "J02",
+      "title": "Exercise command-only real Discord user routing",
+      "profile": "coordinator",
+      "depends_on": [
+        "E02",
+        "E03",
+        "E04",
+        "G03"
+      ],
+      "allowed_paths": [
+        "docs"
+      ],
+      "acceptance": "Reuse authenticated probe #29 evidence; no fake inbound human messages and no needless repeat acceptance.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "J03",
+      "title": "Run full nontrivial real-user multi-role Discord task",
+      "profile": "codex_medium",
+      "depends_on": [
+        "B02",
+        "B03",
+        "C02",
+        "F02",
+        "G04",
+        "J02"
+      ],
+      "allowed_paths": [
+        "scripts",
+        "docs"
+      ],
+      "acceptance": "Real request -> researcher -> real command/artifact -> independent validator -> exactly scoped response; confirm all evidence.",
+      "live_gate": true,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "J04",
+      "title": "Verify two-task queue and exclusive Colab with CPU semantics",
+      "profile": "codex_medium",
+      "depends_on": [
+        "G02",
+        "I01"
+      ],
+      "allowed_paths": [
+        "tests/test_scheduler.py",
+        "tests/test_cloud.py",
+        "docs"
+      ],
+      "acceptance": "Two task slots and queued third; Colab no overlap; CPU Kaggle no accelerator; hardware evidence only when required.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "K01",
+      "title": "Clean maintained source and keep historical artifacts separate",
+      "profile": "agy_flash",
+      "depends_on": [
+        "A01",
+        "A00"
+      ],
+      "allowed_paths": [
+        "docs",
+        "README.md",
+        ".gitignore"
+      ],
+      "acceptance": "Short current entrypoint; historical repairs marked dated/archived with history preserved; no deletion of task evidence.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "K02",
+      "title": "Verify tracked checkout and local Git release",
+      "profile": "codex_medium",
+      "depends_on": [
+        "H02",
+        "I02",
+        "K01"
+      ],
+      "allowed_paths": [
+        ".gitignore",
+        "config/workflow_config.example.json",
+        "docs"
+      ],
+      "acceptance": "Fresh tracked clone/export doctor+tests pass without personal config; no secrets/generated machine paths; local commits, no invented remote.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "L01",
+      "title": "Final consistency/reproduction acceptance",
+      "profile": "coordinator",
+      "depends_on": [
+        "C04",
+        "D03",
+        "E05",
+        "F02",
+        "G04",
+        "H03",
+        "I01",
+        "J01",
+        "J04",
+        "K02"
+      ],
+      "allowed_paths": [
+        "docs"
+      ],
+      "acceptance": "Independent final checks, source/live evidence matrix, explicit incomplete gates; no production claim based only on fixtures.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "L02",
+      "title": "Summarize deferred approvals and exact safe resume steps",
+      "profile": "coordinator",
+      "depends_on": [
+        "L01"
+      ],
+      "allowed_paths": [
+        "docs/ralph-next"
+      ],
+      "acceptance": "Every blocked live/model/permission task has cause, exact action/preconditions/actor and recovery; no credentials or uncertain replay.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600,
+      "implementation_policy": "reuse_verified_existing_work; do not redo or claim completion without current evidence"
+    },
+    {
+      "id": "H04",
+      "title": "Keep Claude/OpenCode future adoption explicit and testable",
+      "profile": "coordinator",
+      "depends_on": [
+        "H01"
+      ],
+      "allowed_paths": [
+        "core/integrations.py",
+        "core/providers.py",
+        "docs/PROVIDERS.md"
+      ],
+      "acceptance": "Offline native instruction/hook/skill/session contracts preserved; no live account claim where CLI/account absent; lower priority than AGY/Codex.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600
+    },
+    {
+      "id": "Z00",
+      "title": "Produce truthful readiness verdict and deferred-work handoff at any stopping point",
+      "profile": "coordinator",
+      "depends_on": [],
+      "allowed_paths": [
+        "docs/ralph-next"
+      ],
+      "acceptance": "List every unclosed task, ready vs approval/model/resource blocked, exact evidence and resume steps. Source-ready and production/live-ready are separate. No unverified DONE.",
+      "live_gate": false,
+      "initial_status": "needs_reverification",
+      "max_attempts": 2,
+      "timeout_seconds": 600
+    }
+  ]
+}
