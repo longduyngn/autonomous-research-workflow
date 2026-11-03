@@ -2,6 +2,8 @@
 import json
 import re
 import threading
+import time
+import uuid
 
 TERMINAL = {'COMPLETED', 'FAILED', 'ESCALATED'}
 
@@ -27,6 +29,8 @@ class Conversation:
                 c.execute("ALTER TABLE intake_messages ADD COLUMN options TEXT NOT NULL DEFAULT '{}'")
             if 'delivery_channel' not in columns:
                 c.execute("ALTER TABLE intake_messages ADD COLUMN delivery_channel TEXT NOT NULL DEFAULT ''")
+            for name,definition in {'delivery_owner':"TEXT NOT NULL DEFAULT ''",'delivery_until':'REAL NOT NULL DEFAULT 0'}.items():
+                if name not in columns:c.execute(f'ALTER TABLE intake_messages ADD COLUMN {name} {definition}')
 
     def receive(self, message, scope, actor, event_key, reply_key='', explicit=False, input_files=None,delivery_channel=''):
         with self.lock:
@@ -148,17 +152,31 @@ class Conversation:
                 query += ' AND applied=1'
             return [dict(r) for r in c.execute(query + ' ORDER BY id', (task_id,))]
 
-    def delivered(self, event_key, reply_id=None):
+    def delivered(self, event_key, reply_id=None, owner=None):
         with self.db._connect() as c:
+            c.execute('BEGIN IMMEDIATE')
             row = c.execute('SELECT * FROM intake_messages WHERE event_key=?', (event_key,)).fetchone()
-            c.execute('UPDATE intake_messages SET delivered=1 WHERE event_key=?', (event_key,))
+            if not row or (owner is not None and row['delivery_owner']!=owner):return False
+            c.execute("UPDATE intake_messages SET delivered=1,delivery_owner='',delivery_until=0 WHERE event_key=?", (event_key,))
             if reply_id and row:
                 c.execute('INSERT OR IGNORE INTO intake_messages(event_key,scope,actor,message,reply_key,response,task_id,delivered) VALUES(?,?,?,?,?,?,?,1)',
                           (reply_id,row['scope'],row['actor'],'[bot response]',event_key,row['response'],row['task_id']))
+            return True
+
+    def claim_delivery(self, event_key):
+        owner=uuid.uuid4().hex
+        with self.db._connect() as c:
+            cur=c.execute("UPDATE intake_messages SET delivery_owner=?,delivery_until=? WHERE event_key=? AND delivered=0 AND response!='' AND delivery_until<?",
+                          (owner,time.time()+120,event_key,time.time()))
+            return owner if cur.rowcount else None
+
+    def release_delivery(self,event_key,owner):
+        with self.db._connect() as c:
+            c.execute("UPDATE intake_messages SET delivery_owner='',delivery_until=0 WHERE event_key=? AND delivery_owner=?",(event_key,owner))
 
     def pending(self):
         with self.db._connect() as c:
-            return [dict(r) for r in c.execute("SELECT * FROM intake_messages WHERE delivered=0 AND response!='' LIMIT 20")]
+            return [dict(r) for r in c.execute("SELECT * FROM intake_messages WHERE delivered=0 AND response!='' AND delivery_until<? ORDER BY rowid LIMIT 20",(time.time(),))]
 
     def recover(self):
         with self.db._connect() as c:

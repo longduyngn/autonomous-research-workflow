@@ -1,8 +1,10 @@
 # Workflow maintainer entry point
 
 Read README.md, docs/RALPH_DISCORD_RELEASE.md and docs/DISCORD_RELEASE_REVIEW.md.
-The current checkpoint will pause for real user-origin Discord acceptance. Do not
-fabricate an incoming human message or declare the probe complete before evidence.
+Real user-origin Discord status/approval acceptance for probe #29 is verified.
+Duplicate approval confirmation was reproduced as an immediate-handler/heartbeat
+race; DB delivery claims now serialize both paths. See docs/DISCORD_DELIVERY_FIX.md.
+Native provider/account end-to-end execution remains separately unverified.
 
 ## Current contract
 

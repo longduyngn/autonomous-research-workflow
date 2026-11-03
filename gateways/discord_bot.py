@@ -172,15 +172,18 @@ class DiscordBotRunner:
                     except Exception as exc:
                         self.conversation.db.log_event('INTAKE_RECOVERY_ERROR', 'discord', str(exc), severity='WARN')
                     for item in self.conversation.pending():
+                        delivery_owner=self.conversation.claim_delivery(item['event_key'])
+                        if not delivery_owner:continue
                         try:
                             target=item.get('delivery_channel') or item['scope']
                             if item['event_key'].startswith('approval:'):
                                 target=self.playground_channels.get('approval_list') or target
                             channel = bot.get_channel(int(target)) or await bot.fetch_channel(int(target))
                             sent = await channel.send(item['response'][:1900], allowed_mentions=discord.AllowedMentions.none())
-                            self.conversation.delivered(item['event_key'], f'discord:{sent.id}')
+                            self.conversation.delivered(item['event_key'], f'discord:{sent.id}',delivery_owner)
                         except Exception:
-                            pass  # Retain the durable response for the next delivery attempt.
+                            # Unknown send outcome: retain lease until expiry before retry.
+                            pass
                     approval_ch_id = self.playground_channels.get("approval_list")
                     if approval_ch_id and approval_ch_id.isdigit():
                         try:
@@ -273,9 +276,10 @@ class DiscordBotRunner:
                         files = await save_attachments(message.attachments, Path(__file__).resolve().parent.parent / 'storage/ingress' / uuid.uuid4().hex)
                     item = await asyncio.to_thread(self.conversation.receive, clean, effective_scope, user_tag,
                         f'discord:{message.id}', reply_key, explicit=False, input_files=files,delivery_channel=channel_id)
-                    if not item['delivered']:
+                    delivery_owner=self.conversation.claim_delivery(item['event_key'])
+                    if delivery_owner:
                         sent = await message.channel.send(item['response'][:1900], allowed_mentions=discord.AllowedMentions.none())
-                        self.conversation.delivered(item['event_key'], f'discord:{sent.id}')
+                        self.conversation.delivered(item['event_key'], f'discord:{sent.id}',delivery_owner)
                 except ValueError as exc:
                     await message.channel.send(str(exc), allowed_mentions=discord.AllowedMentions.none())
                 return
