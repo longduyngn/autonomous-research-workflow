@@ -86,11 +86,8 @@ class DiscordBotRunner:
         return re.sub(r"[\s_-]+", "_", str(name).strip().lower()).strip("_") if isinstance(name, str) else ""
 
     def _resolve_guild_channels(self, guilds) -> Dict[str, str]:
-        roles_aliases = {
-            "task_proposal": {"task_proposal", "task_proposals"},
-            "approval_list": {"approval_list", "approvals", "approval"},
-            "task_log": {"task_log", "task_logs"},
-        }
+        from core.discord_channels import ALIASES
+        roles_aliases = ALIASES
         found: Dict[str, str] = {}
         for g in guilds or []:
             channels = getattr(g, "channels", []) or []
@@ -151,7 +148,12 @@ class DiscordBotRunner:
             import json, time
             while not bot.is_closed():
                 try:
-                    self.playground_channels = self._resolve_guild_channels(bot.guilds) or self.playground_channels
+                    resolved=self._resolve_guild_channels(bot.guilds)
+                    if resolved and resolved!=self.playground_channels:
+                        if os.environ.get('WORKFLOW_NO_ENV')!='1':
+                            from core.discord_channels import update_env
+                            update_env(Path(__file__).resolve().parents[1]/'.env',resolved)
+                        self.playground_channels=resolved
                     data = {
                         "status": "listening",
                         "bot_user": f"{bot.user.name}#{bot.user.discriminator}",

@@ -21,11 +21,8 @@ def discover_playground_channels(bot_token: str, category_name: str = "antigravi
         "User-Agent": "AntigravityWorkspaceBot/1.0",
     }
     target_cat = _norm_channel_name(category_name)
-    roles_aliases = {
-        "task_proposal": {"task_proposal", "task_proposals"},
-        "approval_list": {"approval_list", "approvals", "approval"},
-        "task_log": {"task_log", "task_logs"},
-    }
+    from core.discord_channels import ALIASES
+    roles_aliases = ALIASES
     found: Dict[str, str] = {}
     try:
         req = urllib.request.Request("https://discord.com/api/v10/users/@me/guilds", headers=headers)
