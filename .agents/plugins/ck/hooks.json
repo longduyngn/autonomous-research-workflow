@@ -1,0 +1,24 @@
+{
+  "ck-cloud-bridge-autostart": {
+    "enabled": false,
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "D:\\Antigravity_playgournd\\.conda\\python.exe D:\\Antigravity_playgournd\\scripts\\cloud_hooks.py SessionStart",
+        "timeout": 10
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "run_command|call_mcp_tool|mcp_ck_nb_.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "D:\\Antigravity_playgournd\\.conda\\python.exe D:\\Antigravity_playgournd\\scripts\\cloud_hooks.py PreToolUse",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

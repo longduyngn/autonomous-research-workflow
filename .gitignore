@@ -7,14 +7,33 @@ ENV/
 
 # Environment Variables & Secrets
 .env
+.env.*
 *.env
 !config/.env.example
+.agents/hooks.json
+config/workflow_config.json
 
 # SQLite Database & Storage
+storage/
+archive/
+.workflow/
 storage/events.db*
 storage/logs/*.log
 storage/logs/agent_runs/
 storage/exports/
+storage/workspaces/
+storage/dry-run/
+storage/bot_heartbeat.json
+storage/tools/
+storage/final-tests.txt
+storage/*20261028*.txt
+storage/verification-20261028/
+storage/verification-*/
+.workflow/
+storage/archive/
+storage/TASKS.md
+storage/*.txt
+storage/cloud-preflight/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

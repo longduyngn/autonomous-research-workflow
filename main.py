@@ -1,23 +1,8 @@
-"""Main Entrypoint for the Antigravity Ephemeral Multi-Agent Workspace.
+"""Durable autonomous research workflow.
 
-Usage examples:
-  # 1. Test the full 4-stage ephemeral loop (Researcher -> Operator -> Validator -> Communicator) in dry-run mode:
-  python main.py run "Create a hello_world.py script" --dry-run
-
-  # 2. Run a real task using headless Antigravity CLI (`agy --print`, no API key required):
-  python main.py run "Create a Python utility that calculates Fibonacci numbers and validate it"
-
-  # 3. Start the continuous autonomous workspace daemon (Orchestrator + 2 Watchers + Messaging Webhook Server):
-  python main.py daemon
-
-  # 4. Inspect SQLite event store, task queue, and role-to-provider mapping:
-  python main.py status
-
-  # 5. View a task's persistent context log file:
-  python main.py logs 1
-
-  # 6. Dynamically change which agent provider backs a specific role:
-  python main.py set-role-provider researcher gemini_rest_api
+Use `doctor` for setup checks, `run` for a request, `enqueue` to queue work,
+`daemon` or `discord-bot` for persistent workers, and `colab-bridge` for Google's
+personal Colab browser session. See README.md and docs/ARCHITECTURE.md.
 """
 
 import argparse
@@ -32,6 +17,7 @@ from core.database import WorkspaceDatabase
 from core.logger import ContextLogManager
 from core.orchestrator import HybridOrchestrator
 from core.providers import EphemeralAgentRunner
+from core.scheduler import TaskScheduler
 from gateways.base import MessagingRouter
 from gateways.discord_gateway import ConsoleGateway, DiscordGateway
 from gateways.webhook_server import InboundWebhookServer
@@ -56,13 +42,30 @@ def load_dotenv(dotenv_path: Path) -> None:
 
 
 def load_config() -> Dict[str, Any]:
-    return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    from core.configuration import validate_config
+    source=CONFIG_PATH if CONFIG_PATH.is_file() else CONFIG_PATH.with_name('workflow_config.example.json')
+    config = json.loads(source.read_text(encoding="utf-8"))
+    return validate_config(config)
+
+
+def save_config(config):
+    from core.configuration import validate_config
+    validate_config(config)
+    temporary = CONFIG_PATH.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(CONFIG_PATH)
 
 
 def build_system(
     config: Dict[str, Any],
     provider_override: Optional[str] = None,
 ):
+    if provider_override == "dry_run_mock":
+        config = json.loads(json.dumps(config))
+        config["database_path"] = "storage/dry-run/events.db"
+        config["logs_dir"] = "storage/dry-run/logs"
+        config.setdefault("isolation", {})["directory"] = "storage/dry-run/workspaces"
+        config["gateways"] = {}
     db_path = WORKSPACE_ROOT / config.get("database_path", "storage/events.db")
     logs_dir = WORKSPACE_ROOT / config.get("logs_dir", "storage/logs")
 
@@ -91,6 +94,7 @@ def build_system(
         outbound_callback=router.dispatch_task_response,
         provider_override=provider_override,
     )
+    orchestrator.delivery_tick = router.flush_outbox
 
     workspace_watcher = WorkspaceWatcherDaemon(
         workspace_root=WORKSPACE_ROOT,
@@ -108,7 +112,9 @@ def build_system(
             title="World Watcher Triggered Task",
             source_channel="console",
             source_user=actor,
+            event_key=actor if actor.startswith("world:") else "",
         )
+    workspace_watcher.task_spawn_callback = _spawn_from_world
 
     world_watcher = WorldWatcherDaemon(
         workspace_root=WORKSPACE_ROOT,
@@ -133,13 +139,32 @@ def cmd_run(args: argparse.Namespace) -> None:
         user_prompt=args.prompt,
         source_channel=args.channel,
         source_user=args.user,
+        input_files=args.input, source_path=args.source or "",
     )
     print(f"[+] Created Task #{task.id}: '{task.title}'")
     print(f"[+] Context Log File: {task.context_log_path}")
     print(f"[+] Running ephemeral agent pipeline (provider_override={override or 'config default'})...")
 
-    final_task = orchestrator.run_task_to_completion(task.id)
+    scheduler = TaskScheduler(orchestrator)
+    scheduler.start()
+    try:
+        last_status=None
+        while db.get_task(task.id).status not in {"COMPLETED", "FAILED", "ESCALATED"}:
+            current=db.get_task(task.id)
+            if current.status!=last_status:
+                print(f'[+] Task #{task.id}: {current.status}',flush=True)
+                if current.status.startswith('WAITING_'):
+                    wait=next((w for w in orchestrator.control.waits() if w['task_id']==task.id),None)
+                    if wait: print(f"    {wait['reason']} | dependency: {wait['dependency']} | inspect: python main.py control list",flush=True)
+                last_status=current.status
+            time.sleep(0.25)
+        final_task = db.get_task(task.id)
+    finally:
+        scheduler.stop(cancel_running=sys.exc_info()[0] is KeyboardInterrupt)
+
     print(f"[+] Task #{final_task.id} finished with terminal status: {final_task.status}")
+    if final_task.status != "COMPLETED":
+        raise SystemExit(1)
 
 
 def cmd_daemon(args: argparse.Namespace) -> None:
@@ -151,15 +176,17 @@ def cmd_daemon(args: argparse.Namespace) -> None:
 
     wh_cfg = config.get("gateways", {}).get("webhook_server", {})
     webhook_server: Optional[InboundWebhookServer] = None
-    if wh_cfg.get("enabled", True):
+    webhook_token = os.environ.get(wh_cfg.get("token_env", "WORKFLOW_WEBHOOK_TOKEN"), "")
+    if wh_cfg.get("enabled", True) and webhook_token:
         host = wh_cfg.get("host", "127.0.0.1")
         port = int(wh_cfg.get("port", 8080))
 
-        def _enqueue(prompt: str, channel: str, user: str) -> int:
+        def _enqueue(prompt: str, channel: str, user: str, event_key: str = "") -> int:
             t = orchestrator.submit_task(
                 user_prompt=prompt,
                 source_channel=channel,
                 source_user=user,
+                event_key=event_key,
             )
             return t.id
 
@@ -174,9 +201,12 @@ def cmd_daemon(args: argparse.Namespace) -> None:
             db=db,
             enqueue_task_fn=_enqueue,
             inject_world_event_fn=_inject_world,
+            auth_token=webhook_token,
         )
         webhook_server.start_background()
         print(f"[+] Inbound Messaging Webhook Server listening on http://{host}:{port}")
+    elif wh_cfg.get("enabled", True):
+        print("[i] Webhook ingress disabled until WORKFLOW_WEBHOOK_TOKEN is configured.")
 
     poll_interval = float(config.get("orchestrator", {}).get("poll_interval_seconds", 2.0))
     ws_interval = float(
@@ -188,19 +218,13 @@ def cmd_daemon(args: argparse.Namespace) -> None:
 
     last_ws_check = 0.0
     last_world_check = 0.0
+    scheduler = TaskScheduler(orchestrator)
+    scheduler.start()
     print("[+] Autonomous Workspace Daemon started. Press Ctrl+C to stop.")
 
     try:
         while True:
             now = time.monotonic()
-
-            # 1. Step pending/active tasks in the state machine
-            active_tasks = db.get_Next_actionable_tasks(limit=2)
-            for task in active_tasks:
-                print(
-                    f"[*] Advancing Task #{task.id} (status={task.status}, role={task.current_role})..."
-                )
-                orchestrator.process_next_step(task)
 
             # 2. Internal Workspace Watcher tick
             if config.get("watchers", {}).get("workspace", {}).get("enabled", True):
@@ -217,6 +241,7 @@ def cmd_daemon(args: argparse.Namespace) -> None:
             time.sleep(poll_interval)
     except KeyboardInterrupt:
         print("\n[!] Shutting down workspace daemon...")
+        scheduler.stop(cancel_running=True)
         if webhook_server:
             webhook_server.stop()
 
@@ -232,22 +257,27 @@ def cmd_discord_bot(args: argparse.Namespace) -> None:
     from gateways.discord_bot import DiscordBotRunner
     db, _, orchestrator, _, _, _ = build_system(config, provider_override=args.provider)
 
-    def _enqueue(prompt: str, channel: str, user: str) -> Any:
+    scheduler = TaskScheduler(orchestrator)
+    scheduler.start()
+
+    def _enqueue(prompt: str, channel: str, user: str, event_key: str = "", input_files=None) -> Any:
         task = orchestrator.submit_task(
             user_prompt=prompt,
             source_channel=channel,
             source_user=user,
+            event_key=event_key,
+            input_files=input_files,
         )
-        # Run in background or immediately
-        import threading
-        threading.Thread(target=orchestrator.run_task_to_completion, args=(task.id,), daemon=True).start()
         return task
 
     def _status() -> Dict[str, Any]:
         return {"tasks": db.get_all_tasks(limit=10)}
 
-    bot_runner = DiscordBotRunner(token, _enqueue, _status)
-    bot_runner.run()
+    bot_runner = DiscordBotRunner(token, _enqueue, _status, conversation=orchestrator.conversation)
+    try:
+        bot_runner.run()
+    finally:
+        scheduler.stop(cancel_running=True)
 
 
 def cmd_status(args: argparse.Namespace) -> None:
@@ -311,7 +341,8 @@ def cmd_set_role_provider(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     roles[args.role]["provider"] = args.provider
-    CONFIG_PATH.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+    roles[args.role]["model"] = ""
+    save_config(config)
     print(f"[+] Updated role '{args.role}' to use provider '{args.provider}' in {CONFIG_PATH.name}.")
 
 
@@ -320,12 +351,10 @@ def main() -> None:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-    load_dotenv(WORKSPACE_ROOT / ".env")
-    load_dotenv(WORKSPACE_ROOT / "config" / ".env")
-
     parser = argparse.ArgumentParser(
         description="Antigravity Ephemeral Multi-Agent Workspace Orchestrator"
     )
+    parser.add_argument("--no-env", action="store_true", help="Do not load .env files")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_run = sub.add_parser("run", help="Submit a single task and run it to completion")
@@ -334,6 +363,8 @@ def main() -> None:
     p_run.add_argument("--user", default="local_user", help="Source user identifier")
     p_run.add_argument("--dry-run", action="store_true", help="Use fast mock provider to test workflow loop")
     p_run.add_argument("--provider", default=None, help="Override provider for all roles in this run")
+    p_run.add_argument("--input", action="append", default=[], help="Explicit input file; repeat for more files (50 MB total)")
+    p_run.add_argument("--source", help="Project directory to snapshot instead of the controller")
     p_run.set_defaults(func=cmd_run)
 
     p_daemon = sub.add_parser("daemon", help="Run the continuous orchestrator, watchers, and webhook server")
@@ -356,12 +387,156 @@ def main() -> None:
     p_logs.add_argument("task_id", type=int, help="Task ID")
     p_logs.set_defaults(func=cmd_logs)
 
-    p_set = sub.add_parser("set-role-provider", help="Change which provider executes a given role")
+    def control(args):
+        from core.control import ControlPlane
+        cfg=load_config()
+        db=WorkspaceDatabase(WORKSPACE_ROOT/cfg.get('database_path','storage/events.db'))
+        cp=ControlPlane(db)
+        if args.action=='list':
+            with db._connect() as c:
+                approvals=[dict(r) for r in c.execute('SELECT * FROM approvals ORDER BY created DESC LIMIT 30')]
+            print(json.dumps({'waits':cp.waits(),'approvals':approvals},indent=2))
+        elif args.action=='show':
+            print(json.dumps(cp.approval(args.key),indent=2))
+        elif args.action in {'approve','deny'}:
+            if not args.actor:
+                raise SystemExit('--actor must match the recorded task owner; local CLI is an administrator interface')
+            accepted=cp.decide(args.key,args.actor,'APPROVED' if args.action=='approve' else 'DENIED')
+            print('Decision recorded' if accepted else 'Rejected: identity, state or expiry mismatch')
+            if not accepted: raise SystemExit(1)
+        elif args.action=='cooldown':
+            if args.key not in cfg.get('providers',{}): raise SystemExit('Unknown provider')
+            cp.cool_down(args.key,args.seconds,'Explicit host cooldown')
+            print('Provider cooldown recorded; new role calls will wait')
+        elif args.action=='reconcile-colab':
+            from core.resource_gate import ColabGate
+            from core.colab_bridge import browser_action
+            gate=ColabGate(WORKSPACE_ROOT/cfg.get('cloud',{}).get('resource_directory','storage/resource-control'),lambda:browser_action('runtime_status',{}))
+            print(json.dumps(gate.reconcile(),indent=2))
+    p_control=sub.add_parser('control',help='Inspect waits/exact approvals; host-only administrative decisions')
+    p_control.add_argument('action',choices=['list','show','approve','deny','cooldown','reconcile-colab'])
+    p_control.add_argument('key',nargs='?',default='')
+    p_control.add_argument('--actor',default='')
+    p_control.add_argument('--seconds',type=float,default=60)
+    p_control.set_defaults(func=control)
+
+    def dashboard(args):
+        from core.dashboard import serve_dashboard
+        cfg = load_config()
+        db = WorkspaceDatabase(WORKSPACE_ROOT / cfg.get("database_path", "storage/events.db"))
+        serve_dashboard(db, WORKSPACE_ROOT, port=args.port,host=args.host)
+    p_dashboard = sub.add_parser("dashboard", help="Read-only local task dashboard (no workers)")
+    p_dashboard.add_argument("--port", type=int, default=8787)
+    p_dashboard.add_argument('--host',choices=['127.0.0.1','0.0.0.0'],default='127.0.0.1',help='Container bind; publish the port on localhost only')
+    p_dashboard.set_defaults(func=dashboard)
+
+    def inspect_task(args):
+        from core.observability import task_detail
+        cfg = load_config()
+        db = WorkspaceDatabase(WORKSPACE_ROOT / cfg.get("database_path", "storage/events.db"))
+        print(json.dumps(task_detail(db, args.task_id), indent=2, ensure_ascii=False))
+    p_inspect = sub.add_parser("task", help="Inspect a task's stages, named runs and checks")
+    p_inspect.add_argument("task_id", type=int)
+    p_inspect.set_defaults(func=inspect_task)
+
+    def verify(args):
+        import subprocess
+        command = [sys.executable, str(WORKSPACE_ROOT / "scripts/verify_workflow.py"),
+                   "--provider", args.provider, "--timeout", str(args.timeout)]
+        if args.no_env:
+            command.append("--no-env")
+        raise SystemExit(subprocess.call(command, cwd=WORKSPACE_ROOT))
+    p_verify = sub.add_parser("verify", help="Real local smoke task in a separate DB; no Discord or GPU use")
+    p_verify.add_argument("--provider", default="configured", choices=["configured", "codex_cli", "agy_headless_auto", "claude_cli", "opencode_cli"])
+    p_verify.add_argument("--timeout", type=int, default=300)
+    p_verify.set_defaults(func=verify)
+
+    def board(args):
+        from core.reports import write_board
+        config = load_config()
+        db = WorkspaceDatabase(WORKSPACE_ROOT / config["database_path"])
+        destination = WORKSPACE_ROOT / "storage/TASKS.md"
+        write_board(db, destination)
+        print(destination)
+    sub.add_parser("board", help="Write a readable task index to storage/TASKS.md").set_defaults(func=board)
+
+    def archive(args):
+        from core.maintenance import archive_task
+        from core.reports import write_board
+        config = load_config()
+        db = WorkspaceDatabase(WORKSPACE_ROOT / config["database_path"])
+        result = archive_task(db, WORKSPACE_ROOT, args.task_id, args.batch)
+        write_board(db, WORKSPACE_ROOT / "storage/TASKS.md")
+        print(result['archive_workspace'])
+    p_archive = sub.add_parser('archive-task', help='Move a failed snapshot into storage/archive with hashes; keeps logs and database history')
+    p_archive.add_argument('task_id', type=int)
+    p_archive.add_argument('--batch', default=time.strftime('%Y%m%d'))
+    p_archive.set_defaults(func=archive)
+
+    p_set = sub.add_parser("set-role-provider", help="Legacy provider command; uses the same configuration validation as configure-role")
     p_set.add_argument("role", help="Role name (researcher/operator/validator/communicator/workspace_watcher/world_watcher)")
     p_set.add_argument("provider", help="Provider name from config/workflow_config.json")
     p_set.set_defaults(func=cmd_set_role_provider)
 
+    def configure_role(args):
+        config = load_config()
+        if args.role not in config["roles"] or args.provider not in config["providers"]:
+            raise ValueError("Unknown role/provider; inspect config/workflow_config.json")
+        kind = config["providers"][args.provider]["type"]
+        if args.role in {"researcher", "operator", "validator"} and kind == "gemini_http":
+            raise ValueError("This text-only provider cannot run an action role")
+        config["roles"][args.role].update(provider=args.provider, model=args.model or "")
+        if args.effort:
+            config["roles"][args.role]["effort"] = args.effort
+        save_config(config)
+        print(f"Configured {args.role}; restart running daemons to apply.")
+
+    p_role = sub.add_parser("configure-role", help="Set a role provider/model/effort")
+    p_role.add_argument("role")
+    p_role.add_argument("--provider", required=True)
+    p_role.add_argument("--model", default="")
+    p_role.add_argument("--effort", choices=["low", "medium", "high", "xhigh", "max"])
+    p_role.set_defaults(func=configure_role)
+
+    def use_cli(args):
+        config = load_config()
+        name = {"antigravity": "agy_headless_auto", "codex": "codex_cli", "claude": "claude_cli", "opencode": "opencode_cli"}[args.cli]
+        for role in config["roles"].values():
+            role.update(provider=name, model="")
+        save_config(config)
+        print(f"All roles use {name}; tier models/effort remain independently configurable. Restart daemons.")
+    p_cli = sub.add_parser("use-cli", help="Choose Antigravity, Codex or Claude Code for all roles")
+    p_cli.add_argument("cli", choices=["antigravity", "codex", "claude", "opencode"])
+    p_cli.set_defaults(func=use_cli)
+
+    def doctor(args):
+        from core.diagnostics import inspect_environment
+        print(json.dumps(inspect_environment(WORKSPACE_ROOT, load_config()), indent=2))
+    sub.add_parser("doctor", help="Read-only setup diagnostics; never calls models or allocates GPUs").set_defaults(func=doctor)
+
+    def colab_bridge(args):
+        from core.colab_bridge import serve_colab_bridge
+        serve_colab_bridge(load_config().get("cloud", {}), port=args.port)
+    p_colab = sub.add_parser("colab-bridge", help="Keep official personal Colab browser session connected")
+    p_colab.add_argument("--port", type=int, default=8765)
+    p_colab.set_defaults(func=colab_bridge)
+
+    def enqueue(args):
+        _, _, orchestrator, _, _, _ = build_system(load_config())
+        task = orchestrator.submit_task(args.prompt, provider_override=args.provider or "",
+                                       input_files=args.input, source_path=args.source or "")
+        print(f"Queued task #{task.id}. A daemon or Discord worker will pick it up.")
+    p_enqueue = sub.add_parser("enqueue", help="Queue a request without starting workers")
+    p_enqueue.add_argument("prompt")
+    p_enqueue.add_argument("--provider", default=None)
+    p_enqueue.add_argument("--input", action="append", default=[])
+    p_enqueue.add_argument("--source")
+    p_enqueue.set_defaults(func=enqueue)
+
     args = parser.parse_args()
+    if not args.no_env:
+        load_dotenv(WORKSPACE_ROOT / ".env")
+        load_dotenv(WORKSPACE_ROOT / "config" / ".env")
     args.func(args)
 
 

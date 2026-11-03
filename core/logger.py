@@ -31,7 +31,7 @@ class ContextLogManager:
             f"# Task #{task.id:05d}: {task.title}\n"
             f"- **Created At**: {task.created_at}\n"
             f"- **Source Channel**: {task.source_channel} (User: {task.source_user})\n"
-            f"- **Max Validation Retries**: {task.max_retries}\n\n"
+            f"- **Maximum Attempts Per Item**: {task.max_retries}\n\n"
             f"## Original User Request\n"
             f"{task.user_prompt}\n\n"
             f"---\n"
@@ -77,7 +77,11 @@ class ContextLogManager:
         tail = text[-(max_chars - 4100) :]
         return f"{head}\n\n...[TRUNCATED MIDDLE CONTEXT]...\n\n{tail}"
 
-    def create_agent_cli_log_path(self, task_id: int, role: str) -> Path:
+    def create_agent_cli_log_path(self, task_id: int, role: str, step_index: int = -1,
+                                  attempt: int = 1) -> Path:
         """Return a dedicated CLI log path for a single ephemeral agent invocation."""
         ts = utc_now_iso().replace(":", "-").replace(".", "-")
-        return self.agent_runs_dir / f"task_{task_id:05d}_{role}_{ts}.cli.log"
+        directory = self.agent_runs_dir / f"task_{task_id:05d}"
+        directory.mkdir(parents=True, exist_ok=True)
+        step = f"step_{step_index + 1:02d}" if step_index >= 0 else "overview"
+        return directory / f"{step}_{role}_attempt_{attempt:02d}_{ts}.cli.log"

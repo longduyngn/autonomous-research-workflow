@@ -1,0 +1,7 @@
+discord.py>=2.4,<3
+jupyter-client>=8,<9
+ipykernel>=6,<8
+kaggle>=1.7,<3
+uv>=0.8,<1
+playwright>=1.50,<2
+pypdf>=5,<7

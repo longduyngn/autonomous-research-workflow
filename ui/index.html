@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Research workflow</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <div>
+        <span class="eyebrow">LOCAL WORKSPACE</span>
+        <h1>Research workflow</h1>
+        <p>Follow the work. Inspect the evidence.</p>
+      </div>
+      <div>
+        <span id="connection" role="status">Connecting…</span>
+        <p>Read-only · refreshes every 3 seconds</p>
+      </div>
+    </header>
+    <section id="counts" aria-label="Queue totals"></section>
+    <main>
+      <aside>
+        <label for="filter">Tasks</label
+        ><input id="filter" placeholder="Search ID, title or status" />
+        <div id="tasks"></div>
+      </aside>
+      <article id="detail">
+        <h2>Select a task</h2>
+        <p>
+          The task timeline, verified milestones and named agent runs appear
+          here.
+        </p>
+      </article>
+    </main>
+    <dialog id="transcript">
+      <div class="dialog-head">
+        <h2 id="log-title">Run transcript</h2>
+        <button id="close-log">Close</button>
+      </div>
+      <div id="log-tabs"></div>
+      <p id="log-note"></p>
+      <pre id="log-text"></pre>
+    </dialog>
+  </body>
+</html>

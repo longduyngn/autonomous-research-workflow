@@ -15,10 +15,16 @@ class TaskStatus(str, Enum):
     """Lifecycle states of a task in the hybrid state machine."""
 
     PENDING = "PENDING"
+    INITIALIZING = "INITIALIZING"
     RESEARCHING = "RESEARCHING"
     OPERATING = "OPERATING"
     VALIDATING = "VALIDATING"
     COMMUNICATING = "COMMUNICATING"
+    WAITING_REMOTE = "WAITING_REMOTE"
+    WAITING_RESOURCE = "WAITING_RESOURCE"
+    WAITING_APPROVAL = "WAITING_APPROVAL"
+    WAITING_PROVIDER = "WAITING_PROVIDER"
+    WAITING_INPUT = "WAITING_INPUT"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
     ESCALATED = "ESCALATED"
@@ -68,5 +74,26 @@ class TaskRecord:
     operator_output: str = ""
     validation_feedback: str = ""
     final_response: str = ""
+    outcome: str = ""
+    plan_json: str = "{}"
+    step_index: int = 0
+    workspace_path: str = ""
+    lease_owner: str = ""
+    lease_expires: float = 0.0
+    heartbeat_at: float = 0.0
+    started_at: float = 0.0
+    remote_job_id: str = ""
+    event_key: str = ""
+    parent_task_id: int = 0
+    provider_override: str = ""
+    replan_count: int = 0
+    feedback_revision: int = 0
+    waiting_seconds: float = 0.0
+    wait_deadline: float = 0.0
+    plan_revision: int = 0
+    review_reason: str = ''
+    event_review_count: int = 0
+    inputs_json: str = "[]"
+    source_path: str = ""
     created_at: str = field(default_factory=utc_now_iso)
     updated_at: str = field(default_factory=utc_now_iso)

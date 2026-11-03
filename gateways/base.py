@@ -29,24 +29,29 @@ class MessagingRouter:
 
     def dispatch_task_response(self, task: TaskRecord, message: str) -> None:
         """Send the Communicator's final response back to the originating channel."""
-        channel = task.source_channel
-        gw = self.gateways.get(channel) or self.gateways.get("console")
-        delivered = False
-        if gw:
-            delivered = gw.send_message(message, recipient_id=task.source_user)
+        self.flush_outbox()
 
-        self.db.log_event(
-            event_type="MESSAGE_OUTBOUND",
-            actor=f"gateway:{channel}",
-            task_id=task.id,
-            summary=f"Delivered task #{task.id} response to {channel} (user={task.source_user}, ok={delivered})",
-            payload={"channel": channel, "recipient": task.source_user, "delivered": delivered},
-        )
+    def flush_outbox(self):
+        for _ in range(5):
+            item = self.db.claim_outbound()
+            if not item:
+                break
+            gw = self.gateways.get(item["channel"])
+            try:
+                delivered = bool(gw and gw.send_message(item["message"], recipient_id=item["recipient"]))
+            except Exception:
+                delivered = False
+            self.db.finish_outbound(item["task_id"], delivered, item['revision'])
+            self.db.log_event("MESSAGE_OUTBOUND", f"gateway:{item['channel']}",
+                f"Delivery {'succeeded' if delivered else 'queued for retry'}", task_id=item["task_id"],
+                payload={"delivered": delivered, "attempt": item["attempts"] + 1})
 
     def broadcast_notification(self, message: str, channels: Optional[List[str]] = None) -> None:
         """Broadcast a Watcher alert or digest to all enabled gateways."""
         targets = channels or list(self.gateways.keys())
+        delivered = True
         for ch in targets:
             gw = self.gateways.get(ch)
             if gw:
-                gw.send_message(message)
+                delivered = gw.send_message(message) and delivered
+        return delivered

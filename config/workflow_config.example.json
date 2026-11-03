@@ -1,0 +1,325 @@
+{
+  "workspace_name": "Antigravity Autonomous Workspace",
+  "database_path": "storage/events.db",
+  "logs_dir": "storage/logs",
+  "orchestrator": {
+    "poll_interval_seconds": 2.0,
+    "max_concurrent_tasks": 2,
+    "max_attempts": 3,
+    "task_timeout_seconds": 86400,
+    "replan_after_failures": 2,
+    "max_replans": 1
+  },
+  "providers": {
+    "agy_headless_safe": {
+      "type": "agy_cli",
+      "executable": "agy",
+      "mode": "accept-edits",
+      "output_format": "text",
+      "skip_permissions": false,
+      "extra_args": [],
+      "sandbox": true,
+      "models": {
+        "research": {
+          "env": "AGY_RESEARCH_MODEL",
+          "default": ""
+        },
+        "worker": {
+          "env": "AGY_WORKER_MODEL",
+          "default": ""
+        },
+        "fast": {
+          "env": "AGY_FAST_MODEL",
+          "default": ""
+        }
+      }
+    },
+    "agy_headless_auto": {
+      "type": "agy_cli",
+      "executable": "agy",
+      "mode": "accept-edits",
+      "output_format": "text",
+      "skip_permissions": false,
+      "extra_args": [],
+      "sandbox": true,
+      "models": {
+        "research": {
+          "env": "AGY_RESEARCH_MODEL",
+          "default": ""
+        },
+        "worker": {
+          "env": "AGY_WORKER_MODEL",
+          "default": ""
+        },
+        "fast": {
+          "env": "AGY_FAST_MODEL",
+          "default": ""
+        }
+      }
+    },
+    "openai_compatible_api": {
+      "type": "http_llm",
+      "base_url": "https://api.openai.com/v1/chat/completions",
+      "api_key_env": "OPENAI_API_KEY",
+      "default_model": "gpt-4o-mini",
+      "supports_tools": true
+    },
+    "gemini_rest_api": {
+      "type": "gemini_http",
+      "api_key_env": "GEMINI_API_KEY",
+      "default_model": "gemini-2.5-flash"
+    },
+    "custom_cli_template": {
+      "type": "custom_cli",
+      "command_template": [
+        "python",
+        "-m",
+        "my_custom_agent",
+        "--prompt",
+        "{prompt}"
+      ]
+    },
+    "dry_run_mock": {
+      "type": "mock"
+    },
+    "codex_cli": {
+      "type": "codex_cli",
+      "executable": "codex",
+      "models": {
+        "research": {
+          "env": "CODEX_RESEARCH_MODEL",
+          "default": ""
+        },
+        "worker": {
+          "env": "CODEX_WORKER_MODEL",
+          "default": ""
+        },
+        "fast": {
+          "env": "CODEX_FAST_MODEL",
+          "default": ""
+        }
+      }
+    },
+    "claude_cli": {
+      "type": "claude_cli",
+      "executable": "claude",
+      "models": {
+        "research": {
+          "env": "CLAUDE_RESEARCH_MODEL",
+          "default": "opus"
+        },
+        "worker": {
+          "env": "CLAUDE_WORKER_MODEL",
+          "default": "sonnet"
+        },
+        "fast": {
+          "env": "CLAUDE_FAST_MODEL",
+          "default": "haiku"
+        }
+      }
+    },
+    "openrouter": {
+      "type": "http_llm",
+      "base_url": "https://openrouter.ai/api/v1/chat/completions",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "supports_tools": true,
+      "free_only": true,
+      "max_tool_rounds": 24,
+      "max_total_tokens": 100000,
+      "models": {
+        "research": {
+          "env": "OPENROUTER_RESEARCH_MODEL",
+          "default": ""
+        },
+        "worker": {
+          "env": "OPENROUTER_WORKER_MODEL",
+          "default": ""
+        },
+        "fast": {
+          "env": "OPENROUTER_FAST_MODEL",
+          "default": ""
+        }
+      }
+    },
+    "opencode_cli": {
+      "type": "opencode_cli",
+      "executable": "opencode",
+      "models": {
+        "research": {
+          "env": "OPENCODE_RESEARCH_MODEL",
+          "default": ""
+        },
+        "worker": {
+          "env": "OPENCODE_WORKER_MODEL",
+          "default": ""
+        },
+        "fast": {
+          "env": "OPENCODE_FAST_MODEL",
+          "default": ""
+        }
+      }
+    }
+  },
+  "roles": {
+    "researcher": {
+      "provider": "agy_headless_safe",
+      "model": "",
+      "effort": "high",
+      "prompt_file": "roles/researcher.md",
+      "timeout_seconds": 1800,
+      "description": "Gathers workspace context, reads files/docs, and prepares an implementation brief.",
+      "tier": "research"
+    },
+    "operator": {
+      "provider": "agy_headless_auto",
+      "model": "",
+      "effort": "medium",
+      "prompt_file": "roles/operator.md",
+      "timeout_seconds": 1800,
+      "description": "Executes code changes, file edits, and shell commands to fulfill the task.",
+      "tier": "worker"
+    },
+    "validator": {
+      "provider": "agy_headless_auto",
+      "model": "",
+      "effort": "medium",
+      "prompt_file": "roles/validator.md",
+      "timeout_seconds": 1800,
+      "description": "Verifies Operator output, runs tests/checks, and outputs PASS or FAIL with feedback.",
+      "tier": "worker"
+    },
+    "communicator": {
+      "provider": "agy_headless_safe",
+      "model": "",
+      "effort": "low",
+      "prompt_file": "roles/communicator.md",
+      "timeout_seconds": 120,
+      "description": "Synthesizes task context and results into a clean user-facing message for Discord/Zalo/Messenger.",
+      "tier": "fast"
+    },
+    "workspace_watcher": {
+      "provider": "agy_headless_safe",
+      "model": "",
+      "effort": "low",
+      "prompt_file": "roles/workspace_watcher.md",
+      "timeout_seconds": 180,
+      "description": "Analyzes workspace anomalies, stuck tasks, or unexpected file changes when triggered by the internal daemon.",
+      "tier": "fast"
+    },
+    "world_watcher": {
+      "provider": "agy_headless_safe",
+      "model": "",
+      "effort": "low",
+      "prompt_file": "roles/world_watcher.md",
+      "timeout_seconds": 180,
+      "description": "Evaluates new outside-world events (RSS/APIs/webhooks) and decides whether to spawn a workspace task or alert the user.",
+      "tier": "fast"
+    }
+  },
+  "watchers": {
+    "workspace": {
+      "enabled": false,
+      "check_interval_seconds": 30,
+      "stuck_task_threshold_seconds": 900,
+      "ignored_dirs": [
+        ".git",
+        "__pycache__",
+        "storage",
+        ".venv",
+        "node_modules"
+      ],
+      "allow_self_healing": false
+    },
+    "world": {
+      "enabled": false,
+      "check_interval_seconds": 300,
+      "sources": [
+        {
+          "name": "hn_top_rss",
+          "type": "rss",
+          "url": "https://news.ycombinator.com/rss",
+          "keywords": [
+            "ai",
+            "agent",
+            "llm",
+            "antigravity",
+            "python"
+          ],
+          "enabled": false
+        },
+        {
+          "name": "custom_json_api",
+          "type": "json_api",
+          "url": "https://api.github.com/repos/google-gemini/gemini-cli/releases/latest",
+          "enabled": false
+        }
+      ],
+      "allow_create_tasks": false
+    }
+  },
+  "gateways": {
+    "webhook_server": {
+      "enabled": false,
+      "host": "127.0.0.1",
+      "port": 8080,
+      "token_env": "WORKFLOW_WEBHOOK_TOKEN"
+    },
+    "discord": {
+      "enabled": false,
+      "webhook_url_env": "DISCORD_WEBHOOK_URL",
+      "bot_token_env": "DISCORD_BOT_TOKEN",
+      "default_channel_id_env": "DISCORD_CHANNEL_ID",
+      "allowed_user_ids_env": "DISCORD_ALLOWED_USER_IDS"
+    },
+    "zalo": {
+      "enabled": false,
+      "oa_access_token_env": "ZALO_OA_ACCESS_TOKEN",
+      "oa_secret_key_env": "ZALO_OA_SECRET_KEY",
+      "default_recipient_id_env": "ZALO_DEFAULT_USER_ID"
+    },
+    "messenger": {
+      "enabled": false,
+      "page_access_token_env": "MESSENGER_PAGE_ACCESS_TOKEN",
+      "verify_token_env": "MESSENGER_VERIFY_TOKEN",
+      "default_recipient_id_env": "MESSENGER_DEFAULT_USER_ID"
+    }
+  },
+  "isolation": {
+    "enabled": true,
+    "directory": "storage/workspaces"
+  },
+  "cloud": {
+    "colab_bridge_url": "http://127.0.0.1:8765",
+    "colab_bridge_token_env": "COLAB_BRIDGE_TOKEN",
+    "colab_command": [
+      "uvx",
+      "--cache-dir",
+      "{controller}/storage/tools/uv",
+      "--python",
+      "3.13",
+      "--from",
+      "git+https://github.com/googlecolab/colab-mcp@b9ab3899e0f1fa493390b1fd6d54aa2e464ecdf1",
+      "colab-mcp"
+    ],
+    "kaggle_accelerators": {
+      "CPU": null,
+      "T4": "NvidiaTeslaT4",
+      "T4X2": "NvidiaTeslaT4",
+      "L4": "NvidiaL4",
+      "A100": "NvidiaTeslaA100",
+      "TPU": "TpuV5E8"
+    },
+    "poll_interval_seconds": 15,
+    "colab_bootstrap_command": [
+      "uvx",
+      "--cache-dir",
+      "{controller}/storage/tools/uv",
+      "--python",
+      "3.13",
+      "--from",
+      "git+https://github.com/googlecolab/colab-mcp@b9ab3899e0f1fa493390b1fd6d54aa2e464ecdf1",
+      "colab-mcp"
+    ],
+    "colab_revision": "b9ab3899e0f1fa493390b1fd6d54aa2e464ecdf1"
+  }
+}

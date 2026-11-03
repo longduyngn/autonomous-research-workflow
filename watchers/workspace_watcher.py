@@ -9,6 +9,8 @@ Monitors workspace health without burning LLM tokens on every tick:
 
 from datetime import datetime, timezone
 from pathlib import Path
+import os
+import time
 from typing import Any, Callable, Dict, Optional
 from core.database import WorkspaceDatabase
 from core.logger import ContextLogManager
@@ -28,6 +30,7 @@ class WorkspaceWatcherDaemon:
         runner: EphemeralAgentRunner,
         notify_callback: Optional[Callable[[str], None]] = None,
         provider_override: Optional[str] = None,
+        task_spawn_callback: Optional[Callable[[str, str], None]] = None,
     ) -> None:
         self.workspace_root = Path(workspace_root)
         self.config = config
@@ -37,6 +40,8 @@ class WorkspaceWatcherDaemon:
         self.runner = runner
         self.notify_callback = notify_callback
         self.provider_override = provider_override
+        self.task_spawn_callback = task_spawn_callback
+        self._last_anomaly_at = 0.0
         self._file_snapshot: Dict[str, float] = self._take_file_snapshot()
 
     def _take_file_snapshot(self) -> Dict[str, float]:
@@ -47,16 +52,15 @@ class WorkspaceWatcherDaemon:
             )
         )
         snapshot: Dict[str, float] = {}
-        for path in self.workspace_root.rglob("*"):
-            if not path.is_file():
-                continue
-            rel_parts = path.relative_to(self.workspace_root).parts
-            if any(part in ignored for part in rel_parts):
-                continue
-            try:
-                snapshot[str(path.relative_to(self.workspace_root))] = path.stat().st_mtime
-            except OSError:
-                continue
+        ignored.update({".conda", ".agents", ".codex", ".aws"})
+        for directory, dirs, files in os.walk(self.workspace_root):
+            dirs[:] = [d for d in dirs if d not in ignored and not (Path(directory) / d).is_symlink()]
+            for name in files:
+                path = Path(directory) / name
+                try:
+                    snapshot[str(path.relative_to(self.workspace_root))] = path.stat().st_mtime
+                except OSError:
+                    continue
         return snapshot
 
     def check_once(self) -> Optional[str]:
@@ -70,7 +74,10 @@ class WorkspaceWatcherDaemon:
             if task.status == TaskStatus.PENDING.value:
                 continue
             try:
-                updated_dt = datetime.fromisoformat(task.updated_at)
+                if task.lease_owner and task.heartbeat_at:
+                    updated_dt = datetime.fromtimestamp(task.heartbeat_at, timezone.utc)
+                else:
+                    updated_dt = datetime.fromisoformat(task.updated_at)
                 elapsed = (now - updated_dt).total_seconds()
                 if elapsed > threshold:
                     anomalies.append(
@@ -105,6 +112,9 @@ class WorkspaceWatcherDaemon:
 
         if not anomalies:
             return None
+        if time.monotonic() - self._last_anomaly_at < 600:
+            return None
+        self._last_anomaly_at = time.monotonic()
 
         # Anomaly detected -> Spawn ephemeral `workspace_watcher` agent
         anomaly_report = "\n".join(f"- {a}" for a in anomalies)
@@ -146,5 +156,9 @@ class WorkspaceWatcherDaemon:
 
         if res.success and "ACTION: ALERT_USER" in res.output.upper() and self.notify_callback:
             self.notify_callback(f"🛡️ **Workspace Watcher Alert**\n{res.output}")
+
+        if (res.success and res.output.strip().startswith("ACTION: SPAWN_TASK")
+                and self.watcher_cfg.get("allow_self_healing", False) and self.task_spawn_callback):
+            self.task_spawn_callback(res.output, "workspace_watcher")
 
         return res.output

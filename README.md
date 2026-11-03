@@ -1,97 +1,94 @@
-# Antigravity Autonomous Ephemeral Workspace
+# Autonomous research workflow
 
-An event-driven, multi-agent workspace where **every agent is spawned exclusively for its assigned step and immediately shut down upon completion**. Context is persisted in per-task Markdown log files (`storage/logs/task_<id>.log`), and every lifecycle transition, spawn, shutdown, and watcher trigger is recorded in a local **SQLite (WAL)** database (`storage/events.db`).
+Give a coding or research task to a small team of headless agents. The controller
+queues requests, creates isolated workspaces, and runs **Research → Execute →
+Check → Report**. Failed checks trigger a bounded repair loop. The researcher
+chooses whether the task needs milestones; simple work stays simple.
 
----
+Every role can use a different CLI or API model. Antigravity, Codex and Claude
+Code support native workflow hooks. OpenCode supports named JSON sessions;
+OpenRouter and compatible APIs use the controller's tool loop.
 
-## Architecture & Working Loop
+Roles keep separate task-scoped disk histories and use explicit native session
+resume when an ID is available. Provider/instruction changes rotate that cache;
+handoffs and current evidence remain authoritative. For VM-loss recovery see
+[computation checkpoints](docs/CHECKPOINTS.md); training must save its own state
+to a configured durable destination. Implementation progress is tracked in
+[the current Ralph checklist](docs/RALPH_RESUMABLE_20261103.md).
 
-```mermaid
-flowchart TD
-    subgraph External["External Channels & Outside World"]
-        MSG["Messaging Apps\n(Discord / Zalo / Messenger / Console)"]
-        FEEDS["Outside World\n(RSS / REST APIs / Webhooks)"]
-    end
+## Start in five minutes
 
-    subgraph Daemons["Lightweight Non-LLM Daemons (Zero Idle Token Cost)"]
-        GW["Messaging Gateway & Webhook Server\n(gateways/)"]
-        ORCH["Hybrid State-Machine Orchestrator\n(core/orchestrator.py)"]
-        WS_D["Workspace Monitor Daemon\n(watchers/workspace_watcher.py)"]
-        WL_D["World Poller Daemon\n(watchers/world_watcher.py)"]
-    end
+Use **Python 3.11+** (3.11 is tested), Git, and an installed/logged-in agent CLI. In PowerShell:
 
-    subgraph Storage["Persistent State & Context"]
-        DB[("SQLite Event & Task DB\nstorage/events.db")]
-        LOGS["Per-Task Context Logs\nstorage/logs/task_XXXXX.log"]
-    end
-
-    subgraph Agents["Ephemeral Agents (Spawn -> Execute -> Shut Down)"]
-        R["1. Researcher"]
-        O["2. Operator"]
-        V["3. Validator"]
-        C["4. Communicator"]
-        W_WS["5. Workspace Watcher Agent"]
-        W_WL["6. World Watcher Agent"]
-    end
-
-    MSG <-->|Inbound / Outbound| GW
-    GW -->|Enqueue Task| DB
-    ORCH <-->|Read / Update State| DB
-    ORCH <-->|Read / Append Context| LOGS
-
-    ORCH -->|Step 1: Spawn & Kill| R
-    ORCH -->|Step 2: Spawn & Kill| O
-    ORCH -->|Step 3: Spawn & Kill| V
-    V -.->|If FAIL & retries < 3| O
-    ORCH -->|Step 4: Spawn & Kill| C
-    C -->|Deliver Final Reply| GW
-
-    WS_D -->|On Anomaly Only| W_WS
-    FEEDS --> WL_D
-    WL_D -->|On New Signal Only| W_WL
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.lock.txt
+python main.py --no-env doctor
+python main.py --no-env run "Check the workflow" --dry-run
 ```
 
-### Why this Hybrid Loop Works Best
-1. **Zero Idle Token Burn**: The 2 Watchers (`workspace_watcher` and `world_watcher`) use lightweight Python checks for file changes, stuck SQLite tasks, and RSS/API deduplication, spawning an LLM agent **only** when an anomaly or unseen external item is found.
-2. **Bounded Validation Loop**: If `Validator` outputs `VERDICT: FAIL`, the Orchestrator routes the feedback back to `Operator` up to `max_validation_retries` (default `3`) before escalating to the user via `Communicator`.
-3. **Role-Agnostic Pluggable Providers**: By default, roles run via **headless Antigravity CLI (`agy --print`)** which requires **no API key**. Any role can be switched independently to OpenAI/Ollama (`http_llm`), Gemini REST (`gemini_http`), or any custom CLI in `config/workflow_config.json`.
+For Antigravity root hooks, run `python scripts/setup_hooks.py --apply --check`
+using the workflow environment. Setup binds launchers to the current checkout and
+interpreter, preserves policy, and backs up the original config. Rerun after moving
+the checkout or replacing the environment. This avoids relying on the hook's cwd.
 
----
+On Linux/macOS, activate with `source .venv/bin/activate`. A dry run tests the
+controller using mock agents; it is not a real experiment. Existing checkouts
+keep their settings. For a fresh installation, copy
+`config/workflow_config.example.json` to `config/workflow_config.json`; the
+example leaves messaging/watchers off. Credentials belong in environment variables
+or an untracked `.env`. `--no-env` skips loading those files.
 
-## Quickstart Commands
+Check a real agent, then submit work:
 
-### 1. Test the Full Ephemeral Loop (Dry-Run Mode)
-Verify the state machine, SQLite event logging, and context log generation instantly:
 ```powershell
-python main.py run "Create a utility script" --dry-run
+python main.py verify --provider codex_cli
+python main.py run "Implement and test the requested change" --provider codex_cli --source C:\path\to\project
+python main.py run "Solve the assignment using the supplied data" --input C:\path\to\paper.pdf --input C:\path\to\data.json
 ```
 
-### 2. Run a Real Task with Headless Antigravity (`agy`)
-Executes `researcher` -> `operator` -> `validator` -> `communicator` using headless `agy`:
-```powershell
-python main.py run "Create a Python script fib.py that prints the first 10 Fibonacci numbers"
-```
+`--source` snapshots a project; without it, this checkout is the seed. Explicit
+inputs appear under `inputs/` in the task workspace. Originals stay untouched.
+Results stay in `storage/workspaces/task_00001/`; nothing automatically merges.
 
-### 3. Inspect SQLite Events & Tasks
+## Follow the work
+
 ```powershell
+python main.py dashboard
 python main.py status
-python main.py logs 1
+python main.py task 1
 ```
 
-### 4. Change the Agent Provider for Any Role
-Switch any role to another provider defined in `config/workflow_config.json`:
-```powershell
-python main.py set-role-provider researcher gemini_rest_api
-python main.py set-role-provider researcher agy_headless_safe
-```
+Open **http://127.0.0.1:8787** for stages, verified milestones, attempts, checks and
+named agent transcripts. This read-only view starts no workers. Two tasks run
+concurrently; later requests queue. The configurable hard maximum is three.
 
-### 5. Start the 24/7 Autonomous Daemon & Messaging Webhook Server
-```powershell
-python main.py daemon
-```
-Once running, you can send tasks via HTTP/Discord/Zalo/Messenger webhooks:
-```powershell
-Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8080/webhook/task" `
-  -ContentType "application/json" `
-  -Body '{"prompt": "Check workspace status", "channel": "console", "user": "admin"}'
-```
+For background work, use `enqueue` plus `daemon`. For Discord, set
+`DISCORD_BOT_TOKEN` and `DISCORD_ALLOWED_USER_IDS`, then run
+`python main.py discord-bot`. Send `!task ...` with optional attachments,
+`!status`, or `!retry 12`. The listener includes workers; one listener is enough.
+Run `python scripts/setup_discord.py --apply-env` to discover the existing
+antigravity_playground category and safely synchronize only its channel-ID keys.
+The three channels are task-proposal (chat/clarification and !task), approval list
+(approval requests/decisions only), and task log (status/search on request).
+DMs/mentions are conversation, not automatic task submissions. Reply to a task
+message with feedback or use `!feedback <id> <change>`. Role-boundary updates,
+worker-free waits and exact-action approvals are explained in the
+[resumable workflow guide](docs/RESUMABLE_WORKFLOW.md).
+
+## Configure and extend
+
+- [Mix CLI/API models by role](docs/PROVIDERS.md)
+- [Architecture, Ralph loop and sophisticated tasks](docs/ARCHITECTURE.md)
+- [Cloud, operation and recovery](docs/OPERATIONS.md)
+- [Audit findings and verification](docs/READINESS.md)
+- [Seven proposals: implementation and limits](docs/PROPOSAL_STATUS_20261103.md)
+- [Current Ralph checklist](docs/RALPH_RESUMABLE_20261103.md)
+- [Future rented compute adapters](docs/COMPUTE_EXTENSIONS.md)
+
+This is a local workflow for trusted code, not a multi-tenant execution service.
+Snapshots prevent file conflicts; they are not an OS sandbox. Model access and
+cloud quotas depend on your accounts. Run tests with
+`python -m unittest discover -s tests -v`. Historical reports/experiments are
+separate under `archive/`; persistent task history stays under `storage/`.

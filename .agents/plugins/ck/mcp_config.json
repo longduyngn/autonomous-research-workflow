@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "nb": {
+      "command": "python",
+      "args": [
+        "mcp_servers/notebook_cloud_mcp.py"
+      ],
+      "env": {
+        "PYTHONIOENCODING": "utf-8"
+      }
+    }
+  }
+}

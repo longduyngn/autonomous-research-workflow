@@ -67,6 +67,12 @@ class WorldWatcherDaemon:
                     summary=f"Failed polling external source '{src_name}': {exc}",
                 )
 
+        deduped = []
+        for item in new_items:
+            item.setdefault("item_hash", hashlib.sha256(f"{item.get('source')}:{item.get('title')}:{item.get('url')}".encode()).hexdigest()[:32])
+            if not self.db.is_world_item_seen(item["item_hash"]):
+                deduped.append(item)
+        new_items = deduped
         if not new_items:
             return None
 
@@ -110,14 +116,19 @@ class WorldWatcherDaemon:
         )
 
         if res.success:
-            upper = res.output.upper()
-            if "ACTION: DIGEST" in upper and self.notify_callback:
-                self.notify_callback(f"🌍 **World Watcher Digest**\n{res.output}")
-            elif "ACTION: CREATE_TASK" in upper and self.task_spawn_callback:
-                self.task_spawn_callback(
-                    f"Follow-up from World Watcher:\n{res.output}",
-                    "world_watcher",
-                )
+            first_line = res.output.strip().splitlines()[0] if res.output.strip() else ""
+            if first_line == "ACTION: DIGEST" and self.notify_callback:
+                if self.notify_callback(f"World Watcher Digest\n{res.output}") is False:
+                    return res.output
+            elif first_line == "ACTION: CREATE_TASK":
+                if not self.world_cfg.get("allow_create_tasks", False) or not self.task_spawn_callback:
+                    return res.output
+                key = "world:" + ":".join(sorted(i["item_hash"] for i in new_items))
+                self.task_spawn_callback(f"Follow-up from World Watcher:\n{res.output}", key)
+            elif first_line != "ACTION: IGNORE":
+                return res.output
+            for item in new_items:
+                self.db.mark_world_item_seen(item["item_hash"], item.get("source", "world"), item["title"], item.get("url", ""))
         return res.output
 
     def _fetch_source(
@@ -146,15 +157,13 @@ class WorldWatcherDaemon:
                     continue
                 item_hash = hashlib.sha256(f"{src_name}:{link or title}".encode("utf-8")).hexdigest()[:32]
                 if not self.db.is_world_item_seen(item_hash):
-                    self.db.mark_world_item_seen(item_hash, src_name, title, link)
-                    discovered.append({"source": src_name, "title": title, "url": link})
+                    discovered.append({"source": src_name, "title": title, "url": link, "item_hash": item_hash})
         elif src_type == "json_api":
             data = json.loads(raw)
             title = str(data.get("name") or data.get("title") or data.get("tag_name") or "API Update")
             link = str(data.get("html_url") or data.get("url") or url)
             item_hash = hashlib.sha256(f"{src_name}:{title}:{link}".encode("utf-8")).hexdigest()[:32]
             if not self.db.is_world_item_seen(item_hash):
-                self.db.mark_world_item_seen(item_hash, src_name, title, link)
-                discovered.append({"source": src_name, "title": title, "url": link})
+                discovered.append({"source": src_name, "title": title, "url": link, "item_hash": item_hash})
 
         return discovered

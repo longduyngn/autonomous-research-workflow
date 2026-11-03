@@ -1,0 +1,762 @@
+[
+  {
+    "path": ".gitignore",
+    "bytes": 676,
+    "sha256": "61a15bfc228af9302da122427d373daede9b872b513342146ed61e3d4255a982",
+    "lines": 46,
+    "structure": "Text reviewed",
+    "purpose": "Entrypoint/setup"
+  },
+  {
+    "path": "README.md",
+    "bytes": 3282,
+    "sha256": "889d00e2ec1148c6207a73b17b309b789c86f3c11b9de4fde758643b5b3fc02b",
+    "lines": 72,
+    "structure": "Text reviewed",
+    "purpose": "Entrypoint/setup"
+  },
+  {
+    "path": "main.py",
+    "bytes": 21950,
+    "sha256": "c695ca7beca0935b0b702e5c52aab3c78d19bf856ecb1d51e0b1fbaf2a7d89e3",
+    "lines": 499,
+    "structure": "Python parsed",
+    "purpose": "Entrypoint/setup"
+  },
+  {
+    "path": "requirements.lock.txt",
+    "bytes": 1344,
+    "sha256": "ff2920f1b145279d93500cd3d9311d75cee38cd1e43899c5e9777c55b1dae884",
+    "lines": 68,
+    "structure": "Text reviewed",
+    "purpose": "Entrypoint/setup"
+  },
+  {
+    "path": "requirements.txt",
+    "bytes": 114,
+    "sha256": "d014ef14be6f1ceaf3d2105969b3075be15d283510ead3bec5f9c27d8873d3f7",
+    "lines": 7,
+    "structure": "Text reviewed",
+    "purpose": "Entrypoint/setup"
+  },
+  {
+    "path": ".agents/hooks.json",
+    "bytes": 528,
+    "sha256": "447d34824956e30d2e0a1ca3752b6dea06c36be60d77c371bcd43973992a99fb",
+    "lines": 24,
+    "structure": "JSON parsed",
+    "purpose": "Active native hooks/skills/plugins"
+  },
+  {
+    "path": ".agents/plugins/ck/hooks.json",
+    "bytes": 664,
+    "sha256": "4b33805ba95ab8756d1cc867d93880ec517dbc8b47e6f7d01d52f17be36d0d96",
+    "lines": 24,
+    "structure": "JSON parsed",
+    "purpose": "Active native hooks/skills/plugins"
+  },
+  {
+    "path": ".agents/plugins/ck/mcp_config.json",
+    "bytes": 212,
+    "sha256": "24b402615c4b96405450695c666104e2ee86330104fba70f85cec46d5322f011",
+    "lines": 13,
+    "structure": "JSON parsed",
+    "purpose": "Active native hooks/skills/plugins"
+  },
+  {
+    "path": ".agents/plugins/ck/plugin.json",
+    "bytes": 19,
+    "sha256": "42a8ec2590aacd87e97fcbc3548e806e88f28a4d82ff17602fc678db962e07e6",
+    "lines": 3,
+    "structure": "JSON parsed",
+    "purpose": "Active native hooks/skills/plugins"
+  },
+  {
+    "path": ".agents/plugins/ck/skills/colab-kaggle-workflow/SKILL.md",
+    "bytes": 3508,
+    "sha256": "3ac135551d85072fedb4d266dba23f1f30bfac2f5a332d4bbc8107cf5317697d",
+    "lines": 73,
+    "structure": "Text reviewed",
+    "purpose": "Active native hooks/skills/plugins"
+  },
+  {
+    "path": ".agents/rules/AGENTS.md",
+    "bytes": 983,
+    "sha256": "f86caf912461febcb01a2273b94da712581784cda750ef6d076cc9d972c2e8f0",
+    "lines": 9,
+    "structure": "Text reviewed",
+    "purpose": "Active native hooks/skills/plugins"
+  },
+  {
+    "path": ".agents/skills/colab-coccoc-playwright/SKILL.md",
+    "bytes": 3180,
+    "sha256": "16f65967bd363fc50b37068c94b542690da3b24d2934f1f467d74fd5dfbbcb2a",
+    "lines": 43,
+    "structure": "Text reviewed",
+    "purpose": "Active native hooks/skills/plugins"
+  },
+  {
+    "path": ".agents/skills/colab-coccoc-playwright/scripts/colab_playwright.py",
+    "bytes": 17419,
+    "sha256": "facdd76d2596b9b924db67350d50030e6da314e4265e761a30db2391f568e5dc",
+    "lines": 380,
+    "structure": "Python parsed",
+    "purpose": "Active native hooks/skills/plugins"
+  },
+  {
+    "path": ".agents/skills/kaggle-playwright-cancel/SKILL.md",
+    "bytes": 1411,
+    "sha256": "ebb0d46411caf7026442313900b09eb9f9fc5dc472e0a6b02bac79038b25e3f3",
+    "lines": 30,
+    "structure": "Text reviewed",
+    "purpose": "Active native hooks/skills/plugins"
+  },
+  {
+    "path": ".agents/skills/kaggle-playwright-cancel/scripts/kaggle_cancel.py",
+    "bytes": 4344,
+    "sha256": "72054faadd6bc0d2829f80a80d3521b510c111833098cc395ce53af12d8183a4",
+    "lines": 110,
+    "structure": "Python parsed",
+    "purpose": "Active native hooks/skills/plugins"
+  },
+  {
+    "path": ".github/workflows/tests.yml",
+    "bytes": 578,
+    "sha256": "a4f87b41840ffd57882c63b9ce676c91c2247f5646a27ed9f43b7c851e6eebc7",
+    "lines": 19,
+    "structure": "Text reviewed",
+    "purpose": "CI"
+  },
+  {
+    "path": ".workflow/cloud_jobs/62e32435f09d4ebfa7347a1fb85d70c1/job.json",
+    "bytes": 834,
+    "sha256": "a948586df23ccfbb7f383f03b08349fb32094160dc5d6d0761afa9b7eb878d34",
+    "lines": 11,
+    "structure": "JSON parsed",
+    "purpose": "Entrypoint/setup"
+  },
+  {
+    "path": ".workflow/cloud_jobs/62e32435f09d4ebfa7347a1fb85d70c1/stage/hello_colab_cpu.ipynb",
+    "bytes": 786,
+    "sha256": "89d2f95bf84daea0e638bc9b50d4b166e2497748e20e0a98aee9b974532d5ba8",
+    "lines": 1,
+    "structure": "Text reviewed",
+    "purpose": "Entrypoint/setup"
+  },
+  {
+    "path": ".workflow/cloud_jobs/62e32435f09d4ebfa7347a1fb85d70c1/stage/kernel-metadata.json",
+    "bytes": 380,
+    "sha256": "f681a45c60a13a8663160a5dfade15f4454d4b0b4ffd25caa70c8ef23cabfa77",
+    "lines": 14,
+    "structure": "JSON parsed",
+    "purpose": "Entrypoint/setup"
+  },
+  {
+    "path": ".workflow/cloud_jobs/9fbd0cdd093347889118894598be3bb8/job.json",
+    "bytes": 497,
+    "sha256": "d76e768b80833f497cd22002dd9a22d047f3f77ee84cf24a06858f0651304583",
+    "lines": 11,
+    "structure": "JSON parsed",
+    "purpose": "Entrypoint/setup"
+  },
+  {
+    "path": ".workflow/cloud_jobs/9fbd0cdd093347889118894598be3bb8/stage/ddpm-git.ipynb",
+    "bytes": 4710,
+    "sha256": "890a0e5d56513437bcaa041d51298dd56d4ea48728d0b140d319d0fb359f3c20",
+    "lines": 1,
+    "structure": "Text reviewed",
+    "purpose": "Entrypoint/setup"
+  },
+  {
+    "path": ".workflow/cloud_jobs/9fbd0cdd093347889118894598be3bb8/stage/kernel-metadata.json",
+    "bytes": 327,
+    "sha256": "e90bd6cb2bfcc52e0d4987e66692d28627330de64803ad23ab98fe27ba9d2ce8",
+    "lines": 14,
+    "structure": "JSON parsed",
+    "purpose": "Entrypoint/setup"
+  },
+  {
+    "path": "config/workflow_config.example.json",
+    "bytes": 8992,
+    "sha256": "68167415403fe5036fbd5d4fa8bd5a6578715259aefce0db481b63c2f30dcb3d",
+    "lines": 325,
+    "structure": "JSON parsed",
+    "purpose": "Nonsecret settings"
+  },
+  {
+    "path": "config/workflow_config.json",
+    "bytes": 8871,
+    "sha256": "8eb2c08e84032022d54706d22eb6228ee573f513b9a9c06c4cfe7f38fd839c77",
+    "lines": 320,
+    "structure": "JSON parsed",
+    "purpose": "Nonsecret settings"
+  },
+  {
+    "path": "core/__init__.py",
+    "bytes": 73,
+    "sha256": "ee58d0a49d721d97668fdd5cf4c757f746ea46c9a5d397ce4c4978e88ae4a351",
+    "lines": 1,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "core/cloud.py",
+    "bytes": 31274,
+    "sha256": "7fe27211490d856687ee074d386bae210189e67d1f9500c4d9d2e379cb07423c",
+    "lines": 566,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "core/colab_bridge.py",
+    "bytes": 7951,
+    "sha256": "360ba395512e13c273ae4358b729d9eaaa437c13a9b38646963712a27ff35725",
+    "lines": 154,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "core/colab_runtime.py",
+    "bytes": 2580,
+    "sha256": "e994cf28166b579b82182ff46318948429cb8c298e67d2b0973a805d2c9ccdd4",
+    "lines": 43,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "core/configuration.py",
+    "bytes": 1832,
+    "sha256": "836f9ba2a2c74625165af499fe721e5aa99a720ba4506f14bd42a2fa6650ad40",
+    "lines": 32,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "core/dashboard.py",
+    "bytes": 3323,
+    "sha256": "cea343a497a6d03a68d92fa8f1d48d6f6e661308be3fa2530b20ae7db9cee8bd",
+    "lines": 71,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "core/database.py",
+    "bytes": 24416,
+    "sha256": "54a289541ce4f02738758e58c7336accff465e0183ba99bb9d59525546b52a54",
+    "lines": 511,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "core/diagnostics.py",
+    "bytes": 3192,
+    "sha256": "cccd7ba4c7d7d713f161fcec49e5f3f6b01c68497efe7bdb1acbaa0c9acaf907",
+    "lines": 43,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "core/executables.py",
+    "bytes": 1576,
+    "sha256": "cb07f3527ef67a3bda39786458de165410ef4a4c36ac2b65bd0b5165adea5968",
+    "lines": 39,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "core/inputs.py",
+    "bytes": 1774,
+    "sha256": "5ae7b86335a5604f31708538a67eda87663e95072c95e90d0296e730a272f472",
+    "lines": 42,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "core/integrations.py",
+    "bytes": 9542,
+    "sha256": "81529d3e333f0474defcf12bba7b5214581dae25ece2351eb093004bec0e0801",
+    "lines": 143,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "core/logger.py",
+    "bytes": 3962,
+    "sha256": "683c61c621d66578c1bb9ca6d62361165e55aef1c9a2cb34124fae6579606880",
+    "lines": 87,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "core/maintenance.py",
+    "bytes": 4608,
+    "sha256": "db0b18bcf7b3e70c333a1f4871459b4a8bf624dd941213aaa5e8a410f2a5af0d",
+    "lines": 72,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "core/mcp_client.py",
+    "bytes": 3978,
+    "sha256": "f4ff4ad11f771d8ec16c9f55e342519a62921abff485673e276df3550041a698",
+    "lines": 91,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "core/models.py",
+    "bytes": 2355,
+    "sha256": "01375abbcde84dfecdc923e60800c2ba14ae6fee4f6b170ed0946ae52932ca74",
+    "lines": 89,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "core/network.py",
+    "bytes": 1203,
+    "sha256": "f26b29c2157faa2564788146b7c251aff5cafb40cd7f924de99369be9309dc2f",
+    "lines": 26,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "core/observability.py",
+    "bytes": 4089,
+    "sha256": "177d408d45fd792c6788733cec123cdc89086cce858f36468705ba059c9c56ed",
+    "lines": 77,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "core/orchestrator.py",
+    "bytes": 36555,
+    "sha256": "a0ab264d29a95386edfde5bca3181a4405daa365e64001a7639152a958f43947",
+    "lines": 691,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "core/plans.py",
+    "bytes": 1819,
+    "sha256": "7aa9cdd3faf3fd7a4fa6448d4c394253c200f752abf2fd94ac6564e547209ccd",
+    "lines": 33,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "core/processes.py",
+    "bytes": 3108,
+    "sha256": "55394e74ac9c3dd4980d643ae8cc351e618cf983eca98ed8ecbca708757a0cc4",
+    "lines": 73,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "core/providers.py",
+    "bytes": 22187,
+    "sha256": "9e79c33753fb9c627725a507f3ca09a12c497f24ab154b22df7d02b612408cdb",
+    "lines": 349,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "core/reports.py",
+    "bytes": 2042,
+    "sha256": "e742757a83a16275cef208df981033a68c5c7015c66d702927b1965f12235d4a",
+    "lines": 37,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "core/scheduler.py",
+    "bytes": 3007,
+    "sha256": "e58dee16eba7e553a6dcab5d52afdbdf00e4d93f11f56bd719e36c69081337c1",
+    "lines": 66,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "core/tools.py",
+    "bytes": 6833,
+    "sha256": "eb2769c0a01f77414ea7f9e0d16d29de0faba2d4e9fcc13d509b3d78d9b09d7b",
+    "lines": 112,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "core/workspaces.py",
+    "bytes": 4710,
+    "sha256": "b7257db616146f8d87b83ad139703dfccdf8d3e0febc053f9900add1d493cc05",
+    "lines": 86,
+    "structure": "Python parsed",
+    "purpose": "Controller/runtime"
+  },
+  {
+    "path": "docs/ARCHITECTURE.md",
+    "bytes": 4699,
+    "sha256": "4d743f17a6ffdcc53848756d5cc5e7f57cc1ace2e45262767efd68bd16d9e93f",
+    "lines": 94,
+    "structure": "Text reviewed",
+    "purpose": "Current documentation"
+  },
+  {
+    "path": "docs/OPERATIONS.md",
+    "bytes": 4848,
+    "sha256": "ccbe1634bc07388b2b908cbd1d47644d4ad51cfd550d4ec76c012b9e98304645",
+    "lines": 84,
+    "structure": "Text reviewed",
+    "purpose": "Current documentation"
+  },
+  {
+    "path": "docs/PROVIDERS.md",
+    "bytes": 5123,
+    "sha256": "8463924137706d48fdebbdb0fd84d4047629f9f2cca16551fc19d0949c6fa907",
+    "lines": 90,
+    "structure": "Text reviewed",
+    "purpose": "Current documentation"
+  },
+  {
+    "path": "docs/RALPH_READINESS.md",
+    "bytes": 4074,
+    "sha256": "745c0102344bcf8c7966fed2ddfa10d0f1a494115790e41a165a8c3c52019f7a",
+    "lines": 38,
+    "structure": "Text reviewed",
+    "purpose": "Current documentation"
+  },
+  {
+    "path": "docs/READINESS.md",
+    "bytes": 7248,
+    "sha256": "579c63765226c6f8df9b43a47f63ecb2a2ebbf90e4a2ae7c27d1b989588e0a5d",
+    "lines": 96,
+    "structure": "Text reviewed",
+    "purpose": "Current documentation"
+  },
+  {
+    "path": "docs/ROADMAP.md",
+    "bytes": 2382,
+    "sha256": "ce84fe3ced2f9dfdba0933b21452a419425a4e5deb68e92ab2eddc13f63e6443",
+    "lines": 37,
+    "structure": "Text reviewed",
+    "purpose": "Current documentation"
+  },
+  {
+    "path": "examples/research_task.md",
+    "bytes": 718,
+    "sha256": "005669627c7692cf44665e4a92f84adbe9bdcb76ebb384a6949d79b01f022462",
+    "lines": 14,
+    "structure": "Text reviewed",
+    "purpose": "Example brief"
+  },
+  {
+    "path": "gateways/__init__.py",
+    "bytes": 93,
+    "sha256": "36e1ca3c8b78554abf6506951bcbc9e6ca95f5eb9d930c38bbb9f952c684a238",
+    "lines": 1,
+    "structure": "Python parsed",
+    "purpose": "Messaging/ingress"
+  },
+  {
+    "path": "gateways/base.py",
+    "bytes": 2279,
+    "sha256": "70c1cf699ea92f30799f9c43489034c3bb59e2dc336debd33f5f79d45e3b8667",
+    "lines": 57,
+    "structure": "Python parsed",
+    "purpose": "Messaging/ingress"
+  },
+  {
+    "path": "gateways/discord_bot.py",
+    "bytes": 10325,
+    "sha256": "fae0b7609a532e2526477d8e0c377062ae9fe02d0365e61a823ecabd22619047",
+    "lines": 231,
+    "structure": "Python parsed",
+    "purpose": "Messaging/ingress"
+  },
+  {
+    "path": "gateways/discord_gateway.py",
+    "bytes": 3493,
+    "sha256": "4313ed6651eab42feca79020a1a186d937d7657c048548ca60fb79c1ab98c40a",
+    "lines": 85,
+    "structure": "Python parsed",
+    "purpose": "Messaging/ingress"
+  },
+  {
+    "path": "gateways/webhook_server.py",
+    "bytes": 8931,
+    "sha256": "63dbb369ba3b616843fd3f14664954d1171501ca762f361dd9af21f027252b50",
+    "lines": 184,
+    "structure": "Python parsed",
+    "purpose": "Messaging/ingress"
+  },
+  {
+    "path": "gateways/zalo_messenger_gateway.py",
+    "bytes": 2983,
+    "sha256": "15657035521880909220b5349d13c0a9fca39f5876f569cf5fdaa2101362f40c",
+    "lines": 86,
+    "structure": "Python parsed",
+    "purpose": "Messaging/ingress"
+  },
+  {
+    "path": "mcp_servers/notebook_cloud_mcp.py",
+    "bytes": 2754,
+    "sha256": "1b5f4aab54bb5a14caf441a66074efe98dced09d8a542e2c8c2c6236d90a9942",
+    "lines": 65,
+    "structure": "Python parsed",
+    "purpose": "Tool protocol"
+  },
+  {
+    "path": "roles/communicator.md",
+    "bytes": 663,
+    "sha256": "e51134d6f1514a86bd8d19be3eae8196bfeee55be4edc5b8bd289a6b74630a20",
+    "lines": 10,
+    "structure": "Text reviewed",
+    "purpose": "Agent instructions"
+  },
+  {
+    "path": "roles/operator.md",
+    "bytes": 2490,
+    "sha256": "6f054da94408f0ed06e631f939063c32ee9f94ba8b6fd844a72eed915cc08339",
+    "lines": 36,
+    "structure": "Text reviewed",
+    "purpose": "Agent instructions"
+  },
+  {
+    "path": "roles/researcher.md",
+    "bytes": 2922,
+    "sha256": "6cfeadced6bf1d7dafe4b0d31fff353f2d0cedef1908f4e8c6b3e2ebb0502b24",
+    "lines": 38,
+    "structure": "Text reviewed",
+    "purpose": "Agent instructions"
+  },
+  {
+    "path": "roles/validator.md",
+    "bytes": 1442,
+    "sha256": "f53bfc42774770189a3daa1a6301f0a198b23ea026bb845797d2d10331a77494",
+    "lines": 26,
+    "structure": "Text reviewed",
+    "purpose": "Agent instructions"
+  },
+  {
+    "path": "roles/workspace_watcher.md",
+    "bytes": 800,
+    "sha256": "81c9a0f38b0ac5a512606dc751f2a7df72122aee49e5392a4a2f407ec77d017f",
+    "lines": 15,
+    "structure": "Text reviewed",
+    "purpose": "Agent instructions"
+  },
+  {
+    "path": "roles/world_watcher.md",
+    "bytes": 862,
+    "sha256": "acdcc83a3e850f744b1cf08f0b63823f24e23181d5d56fc90611a12465fb705b",
+    "lines": 15,
+    "structure": "Text reviewed",
+    "purpose": "Agent instructions"
+  },
+  {
+    "path": "scripts/agent_hooks.py",
+    "bytes": 4146,
+    "sha256": "f6fc4b6f194f09712b3358b582c9673c42c2e6f31f252c52db5472bbd5c94f4a",
+    "lines": 85,
+    "structure": "Python parsed",
+    "purpose": "Operations/verification"
+  },
+  {
+    "path": "scripts/check_bot.py",
+    "bytes": 5333,
+    "sha256": "b43bae4117825709009ffc3893e8dd2235200fd630a333d35986c04bba72ce10",
+    "lines": 126,
+    "structure": "Python parsed",
+    "purpose": "Operations/verification"
+  },
+  {
+    "path": "scripts/cloud.py",
+    "bytes": 1609,
+    "sha256": "76b393b82ce1e9c23d161faa39440ae14f7527fd8df0b319cb224f6b473c6087",
+    "lines": 40,
+    "structure": "Python parsed",
+    "purpose": "Operations/verification"
+  },
+  {
+    "path": "scripts/cloud_hooks.py",
+    "bytes": 4584,
+    "sha256": "bba05e7cd20268746b57d2e36e80e9a0f475d987bd84259adeccafea55c10e8c",
+    "lines": 142,
+    "structure": "Python parsed",
+    "purpose": "Operations/verification"
+  },
+  {
+    "path": "scripts/colab_timed_probe.py",
+    "bytes": 11377,
+    "sha256": "fee3dface93450c79979b5211906af6f7e35814091e7b97cc1dd7275c3c27847",
+    "lines": 217,
+    "structure": "Python parsed",
+    "purpose": "Operations/verification"
+  },
+  {
+    "path": "scripts/pre_tool_approval_hook.py",
+    "bytes": 8671,
+    "sha256": "3922e3e3b5ee232ed03c2c54c4337adc7db7f3d092cc06b7d4a9c37ea73ec165",
+    "lines": 209,
+    "structure": "Python parsed",
+    "purpose": "Operations/verification"
+  },
+  {
+    "path": "scripts/setup_colab_runtime.py",
+    "bytes": 3625,
+    "sha256": "c58cd7bb5b52c5deca104c7987b1bcd20c9745fe5eea100c01b6fc2ca721df4b",
+    "lines": 74,
+    "structure": "Python parsed",
+    "purpose": "Operations/verification"
+  },
+  {
+    "path": "scripts/verify_workflow.py",
+    "bytes": 9899,
+    "sha256": "e9f8171e5fab961afeaab168e6f382a939054e7ffd195719c5cff01b570b39db",
+    "lines": 135,
+    "structure": "Python parsed",
+    "purpose": "Operations/verification"
+  },
+  {
+    "path": "scripts/workspace_report.py",
+    "bytes": 2811,
+    "sha256": "6e68c7691501620e6190cb1207199bef6d7e02363a447eba1b727b12e421526c",
+    "lines": 58,
+    "structure": "Python parsed",
+    "purpose": "Operations/verification"
+  },
+  {
+    "path": "tests/test_cloud.py",
+    "bytes": 6020,
+    "sha256": "a329cb77b1a9de7f3fe6744d583ee6cef546537124db17083628b9a867379910",
+    "lines": 106,
+    "structure": "Python parsed",
+    "purpose": "Regression coverage"
+  },
+  {
+    "path": "tests/test_discord_recovery.py",
+    "bytes": 2462,
+    "sha256": "56c83ce4969283d897b1ae90d542eab0954659fa6a35bed6e578ce4ed06fc958",
+    "lines": 42,
+    "structure": "Python parsed",
+    "purpose": "Regression coverage"
+  },
+  {
+    "path": "tests/test_execution.py",
+    "bytes": 4585,
+    "sha256": "9a039d5675d820067b05223b9c2543b0619d15b59196387cdff64ee0662a2547",
+    "lines": 81,
+    "structure": "Python parsed",
+    "purpose": "Regression coverage"
+  },
+  {
+    "path": "tests/test_ingress_delivery.py",
+    "bytes": 4273,
+    "sha256": "90457139f5fab256868d9b086ee9842aa47b1cc97ca065ecca14383262d7b81d",
+    "lines": 84,
+    "structure": "Python parsed",
+    "purpose": "Regression coverage"
+  },
+  {
+    "path": "tests/test_integrations.py",
+    "bytes": 5349,
+    "sha256": "65bf8779df5347d49f5447cf92e4992b48b2b745fb5655f2e7e4c4919c983afd",
+    "lines": 98,
+    "structure": "Python parsed",
+    "purpose": "Regression coverage"
+  },
+  {
+    "path": "tests/test_providers.py",
+    "bytes": 2945,
+    "sha256": "4f68ced2ac588356fa3cec7192e34ec1971a589fdb58799657ef9ea1cf4b0516",
+    "lines": 54,
+    "structure": "Python parsed",
+    "purpose": "Regression coverage"
+  },
+  {
+    "path": "tests/test_readiness.py",
+    "bytes": 14408,
+    "sha256": "ba9a01cdce7b6c995d8ec2592b54c5a2c109ae3de12ae682472fc037c71a5715",
+    "lines": 251,
+    "structure": "Python parsed",
+    "purpose": "Regression coverage"
+  },
+  {
+    "path": "tests/test_recovery_evidence.py",
+    "bytes": 7918,
+    "sha256": "703059698481c302f31f0b457d4dacbd4d80194df245da1b3ebeb730082c5e89",
+    "lines": 134,
+    "structure": "Python parsed",
+    "purpose": "Regression coverage"
+  },
+  {
+    "path": "tests/test_scheduler.py",
+    "bytes": 4169,
+    "sha256": "73a1f9a2f9bc18fdbd05841b321186af2c072afc1f2f9c83675c3c4a09035d28",
+    "lines": 88,
+    "structure": "Python parsed",
+    "purpose": "Regression coverage"
+  },
+  {
+    "path": "tests/test_watchers.py",
+    "bytes": 2769,
+    "sha256": "725fc2ade41e0e38903e647308fca351fa000945b7699953fbeed1251813ae63",
+    "lines": 52,
+    "structure": "Python parsed",
+    "purpose": "Regression coverage"
+  },
+  {
+    "path": "tests/test_workflow.py",
+    "bytes": 3993,
+    "sha256": "115404224cbb1dd9599fb2dcf208736e9559d615882faa2931c81d4608d5d306",
+    "lines": 81,
+    "structure": "Python parsed",
+    "purpose": "Regression coverage"
+  },
+  {
+    "path": "ui/app.js",
+    "bytes": 8345,
+    "sha256": "0de6d26f17234e6d0dea26d29ee9a221c0864bf6849200b55da6734c11cb3df9",
+    "lines": 281,
+    "structure": "Text reviewed",
+    "purpose": "Dashboard"
+  },
+  {
+    "path": "ui/index.html",
+    "bytes": 1373,
+    "sha256": "63cc717ef851eaa25100bc33b53c4960f8acdfae779ef0f99a30e556f33cb2be",
+    "lines": 47,
+    "structure": "Text reviewed",
+    "purpose": "Dashboard"
+  },
+  {
+    "path": "ui/style.css",
+    "bytes": 4074,
+    "sha256": "5908438525259a5cbb37cd48fcfb47ba1af28caf68b1cbc66307f0f3686eaa9f",
+    "lines": 269,
+    "structure": "Text reviewed",
+    "purpose": "Dashboard"
+  },
+  {
+    "path": "watchers/__init__.py",
+    "bytes": 83,
+    "sha256": "d44466119600bc5d44e6514896c066ec865a6a48946c95a0ae4ddf6c38716af0",
+    "lines": 1,
+    "structure": "Python parsed",
+    "purpose": "Optional monitors"
+  },
+  {
+    "path": "watchers/workspace_watcher.py",
+    "bytes": 6755,
+    "sha256": "61ce99553026276aa9102d8b7dad0f2d2d43bda1d1647f396e266151364efce6",
+    "lines": 164,
+    "structure": "Python parsed",
+    "purpose": "Optional monitors"
+  },
+  {
+    "path": "watchers/world_watcher.py",
+    "bytes": 7323,
+    "sha256": "46fb957becb3eff8e0a904b65eb36041ce63ee3f0e5c74d149f212ed8420c138",
+    "lines": 169,
+    "structure": "Python parsed",
+    "purpose": "Optional monitors"
+  }
+]

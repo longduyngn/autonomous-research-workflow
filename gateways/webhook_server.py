@@ -11,6 +11,7 @@ Endpoints:
 import json
 import os
 import threading
+import hmac
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable, Dict, Optional
@@ -27,18 +28,22 @@ class InboundWebhookServer:
         db: WorkspaceDatabase,
         enqueue_task_fn: Callable[[str, str, str], int],
         inject_world_event_fn: Optional[Callable[[str, str, str], None]] = None,
+        auth_token: str = "",
     ) -> None:
         self.host = host
         self.port = port
         self.db = db
         self.enqueue_task_fn = enqueue_task_fn
         self.inject_world_event_fn = inject_world_event_fn
+        self.auth_token = auth_token
         self._server: Optional[ThreadingHTTPServer] = None
         self._thread: Optional[threading.Thread] = None
 
     def start_background(self) -> None:
         """Start the webhook server in a background daemon thread."""
         parent = self
+        if not self.auth_token:
+            raise ValueError("Webhook ingress requires WORKFLOW_WEBHOOK_TOKEN")
 
         class Handler(BaseHTTPRequestHandler):
             def log_message(self, format: str, *args: Any) -> None:
@@ -53,6 +58,9 @@ class InboundWebhookServer:
                 self.wfile.write(body)
 
             def do_GET(self) -> None:
+                if not hmac.compare_digest(self.headers.get("Authorization", ""), f"Bearer {parent.auth_token}"):
+                    self._send_json(401, {"error": "Unauthorized"})
+                    return
                 parsed = urllib.parse.urlparse(self.path)
                 if parsed.path == "/health":
                     tasks = parent.db.get_all_tasks(limit=5)
@@ -89,11 +97,23 @@ class InboundWebhookServer:
                 self._send_json(404, {"error": "Not found"})
 
             def do_POST(self) -> None:
+                if not hmac.compare_digest(self.headers.get("Authorization", ""), f"Bearer {parent.auth_token}"):
+                    self._send_json(401, {"error": "Unauthorized"})
+                    return
                 parsed = urllib.parse.urlparse(self.path)
-                length = int(self.headers.get("Content-Length", "0"))
+                try:
+                    length = int(self.headers.get("Content-Length", "0"))
+                except ValueError:
+                    self._send_json(400, {"error": "Invalid content length"})
+                    return
+                if not 0 < length <= 256000:
+                    self._send_json(413, {"error": "Body must be between 1 and 256000 bytes"})
+                    return
                 raw = self.rfile.read(length).decode("utf-8", errors="replace") if length > 0 else "{}"
                 try:
                     data = json.loads(raw)
+                    if not isinstance(data, dict):
+                        raise json.JSONDecodeError("Object required", raw, 0)
                 except json.JSONDecodeError:
                     self._send_json(400, {"error": "Invalid JSON body"})
                     return
@@ -106,7 +126,8 @@ class InboundWebhookServer:
                     if not prompt:
                         self._send_json(400, {"error": "Missing 'prompt' field"})
                         return
-                    task_id = parent.enqueue_task_fn(prompt, channel, user)
+                    event_key = self.headers.get("Idempotency-Key", "")[:200]
+                    task_id = parent.enqueue_task_fn(prompt, channel, user, f"webhook:{event_key}" if event_key else "")
                     self._send_json(202, {"accepted": True, "task_id": task_id})
                     return
 

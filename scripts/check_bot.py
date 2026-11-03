@@ -20,26 +20,11 @@ if hasattr(sys.stdout, "reconfigure"):
 
 WORKSPACE_ROOT = Path(__file__).resolve().parent.parent
 
-# Load .env
-env_file = WORKSPACE_ROOT / ".env"
-token = ""
-channel_id = ""
-
-if env_file.exists():
-    for line in env_file.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if line.startswith("DISCORD_BOT_TOKEN="):
-            token = line.split("=", 1)[1].strip().strip('"').strip("'")
-        elif line.startswith("DISCORD_CHANNEL_ID="):
-            channel_id = line.split("=", 1)[1].strip().strip('"').strip("'")
-
-if not token:
-    token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
-if not channel_id:
-    channel_id = os.environ.get("DISCORD_CHANNEL_ID", "").strip()
 
 
 def check_bot_status() -> None:
+    token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+    channel_id = os.environ.get("DISCORD_CHANNEL_ID", "").strip()
     print("=" * 60)
     print("DISCORD BOT GATEWAY HEALTH CHECK")
     print("=" * 60)
@@ -48,7 +33,7 @@ def check_bot_status() -> None:
     if not token:
         print("❌ [Token]: DISCORD_BOT_TOKEN is missing in .env")
         return
-    print(f"✅ [Token Configured]: {'*' * 20}...{token[-6:]}")
+    print("✅ [Token Configured]: yes")
 
     # 2. Discord API & Identity Check
     headers = {
@@ -104,6 +89,9 @@ def check_bot_status() -> None:
             print(f"⚠️ [Target Channel]: Error checking channel: {e}")
     else:
         print("ℹ️ [Target Channel]: No default DISCORD_CHANNEL_ID configured in .env (auto-discovery will be used)")
+    pg_channels = __import__("gateways.discord_gateway", fromlist=["discover_playground_channels"]).discover_playground_channels(token)
+    if pg_channels:
+        print(f"✅ [antigravity_playground]: Discovered channels: {json.dumps(pg_channels)}")
 
     # 5. Local Listener Process (Heartbeat Check)
     hb_file = WORKSPACE_ROOT / "storage" / "bot_heartbeat.json"
