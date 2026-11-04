@@ -58,6 +58,13 @@ python scripts/checkpoints.py --store PATH_TO_DURABLE_STORE list
 python scripts/checkpoints.py --store PATH_TO_DURABLE_STORE restore CHECKPOINT_ID --destination FRESH_DIRECTORY --expected expected-hashes.json
 ```
 
+To prepare and validate the explicit private durable Colab checkpoint destination (`D04`) and run the controlled live Colab runtime loss and restore probe (`D05` on CPU without wasting GPU compute units):
+
+```powershell
+python scripts/colab_checkpoint_probe.py --mode d04
+python scripts/colab_checkpoint_probe.py --mode d05
+```
+
 Keep the private store backed up; controller disk loss is outside VM-loss recovery.
 No automatic pruning is performed yet, so old recovery points are retained.
 
