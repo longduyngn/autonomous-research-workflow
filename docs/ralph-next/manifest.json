@@ -1,8 +1,8 @@
 {
   "task_count": 44,
   "files_sha256": {
-    "docs/ralph-next/known_blockers.json": "13d5b66a9f21989aedea02c04348a8c1b6bfd945c12b77926fea0e40e9e0f141",
-    "docs/ralph-next/profiles.json": "16c3f9073173b353001ca5966ae74e31ebea1aae51ed069cc3025bca773992c7",
+    "docs/ralph-next/known_blockers.json": "99dcb019142298b530766ee4b85f2b91630c0914a649d92408ee30ed319f4c76",
+    "docs/ralph-next/profiles.json": "b3fb165564f1e1de5595ad121855f608e9627163d362319ffb9786db94ac04a9",
     "docs/ralph-next/review_record.example.json": "a9075207ac9275db58d8192c8b8fc04a657113347cf2911eda2140aace2278a9",
     "docs/ralph-next/source_probe_results.json": "b7e66e8f2a899aea22dee7371d0fc7094627bfd5b01beb3db5a73e6aab1f60cb",
     "docs/ralph-next/source_provenance.json": "45a20696e7aba2d4944a0fd76465bc621f3b4d2bbc24b6db3bdc030360b0926f",
@@ -12,5 +12,6 @@
     "scripts/ralph_next.py": "784c20ddfe95374551fde607a89f230bdda1d2ecbd7464b3657489d93b2e1ff3"
   },
   "native_jobs_started_during_packaging": 0,
-  "contains_credentials": false
+  "contains_credentials": false,
+  "maintenance_note": "Profile and historical-blocker annotations refreshed during independent verification on 2026-11-04; original assignment preserved."
 }

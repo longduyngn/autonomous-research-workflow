@@ -13,8 +13,9 @@
     "model": "gpt-6.1-sol",
     "effort": "medium",
     "catalog_status": "verified_in_local_codex_models_cache",
-    "live_execution_status": "pending_host_session_verification",
-    "approval_mode": "auto_review_with_existing_sandbox_and_hooks"
+    "live_execution_status": "historical_live_probe_verified_current_access_not_rechecked",
+    "approval_mode": "auto_review_with_existing_sandbox_and_hooks",
+    "live_evidence": "storage/ralph-next/probes/B02/receipt.json"
   },
   "agy_flash": {
     "requested_model": "agy flash 3.8",
@@ -23,7 +24,8 @@
     "model_env": "RALPH_AGY_FLASH_MODEL",
     "effort": "low",
     "catalog_status": "verified_via_agy_models_catalog",
-    "live_execution_status": "pending_host_session_verification",
-    "approval_mode": "auto_for_authorized_workspace_actions_keep_native_controls"
+    "live_execution_status": "historical_live_probe_verified_current_access_not_rechecked",
+    "approval_mode": "auto_for_authorized_workspace_actions_keep_native_controls",
+    "live_evidence": "storage/ralph-next/probes/B03/receipt.json"
   }
 }

@@ -25,7 +25,7 @@ def main():
     cfg = json.loads((CONTROLLER / "config/workflow_config.json").read_text(encoding="utf-8"))
     tools = CloudTools(args.workspace, cfg)
     try:
-        if os.environ.get("WORKFLOW_ROLE") in {"researcher", "communicator", "world_watcher", "workspace_watcher"} and args.command == "call" and args.tool != "notebook_inspect":
+        if os.environ.get("WORKFLOW_ROLE") in {"researcher", "communicator", "world_watcher", "workspace_watcher"} and args.command == "call" and args.tool not in {'notebook_inspect','agent_checkin','experiment_job_status'}:
             raise PermissionError("This role may only inspect cloud artifacts")
         result = tools.schemas() if args.command == "list" else tools.call(args.tool, json.loads(args.args))
         print(json.dumps(result, indent=2, ensure_ascii=False))

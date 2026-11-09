@@ -31,6 +31,7 @@ class WorldWatcherDaemon:
         notify_callback: Optional[Callable[[str], None]] = None,
         task_spawn_callback: Optional[Callable[[str, str], None]] = None,
         provider_override: Optional[str] = None,
+        quota_router: Any = None,
     ) -> None:
         self.workspace_root = Path(workspace_root)
         self.config = config
@@ -41,6 +42,8 @@ class WorldWatcherDaemon:
         self.notify_callback = notify_callback
         self.task_spawn_callback = task_spawn_callback
         self.provider_override = provider_override
+        self.quota_router = quota_router
+        self._route_seen: Dict[Any, Any] = {}
 
     def check_once(self, force_items: Optional[List[Dict[str, str]]] = None) -> Optional[str]:
         """Poll enabled external sources (or injected items) and spawn `world_watcher` if new."""
@@ -89,7 +92,11 @@ class WorldWatcherDaemon:
         )
         role = RoleName.WORLD_WATCHER.value
         role_cfg = self.config.get("roles", {}).get(role, {})
-        provider_name = self.provider_override or role_cfg.get("provider", "agy_headless_safe")
+        from core.quota import route_call
+        override, extra, decision = route_call(self.quota_router, self.db, self.config, role, self.provider_override, self._route_seen)
+        if decision is not None and decision.action == "wait":
+            return None  # Items stay unseen and are retried when quota is available.
+        provider_name = override or role_cfg.get("provider", "agy_headless_safe")
         cli_log = self.log_manager.create_agent_cli_log_path(0, role)
 
         run_id = self.db.record_agent_spawn(
@@ -102,8 +109,12 @@ class WorldWatcherDaemon:
             role=role,
             task_prompt=f"### Newly Discovered Outside-World Items\n{items_text}\n",
             cli_log_path=cli_log,
-            provider_override=self.provider_override,
+            provider_override=override,
+            **extra,
         )
+        if self.quota_router is not None:
+            from core.quota import record_result
+            record_result(self.quota_router.store, self.config, role, res, decision)
         self.db.record_agent_shutdown(
             run_id=run_id,
             role=role,

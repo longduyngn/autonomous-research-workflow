@@ -5,6 +5,7 @@ description: >-
   auto-confirm MCP connection, switch runtime (CPU/T4/L4/A100/TPU), sync and
   execute notebooks without 300s MCP timeouts, read live training logs, and
   disconnect runtime to save compute units.
+  Also checks Google Drive mount/consent and verifies an explicit off-VM checkpoint destination.
 ---
 
 # Google Colab on Cốc Cốc — Playwright CDP & MCP Skill
@@ -41,3 +42,23 @@ Run via [colab_playwright.py](./scripts/colab_playwright.py):
 # 6. Disconnect & delete runtime (powerwash-current-vm) + close MCP bridge connection
 .conda\python.exe .agents/skills/colab-coccoc-playwright/scripts/colab_playwright.py disconnect-runtime
 ```
+
+## Drive-backed checkpoints
+
+Use this when a Colab job needs outputs to survive VM loss, including while the local controller sleeps. A saved notebook, a local task checkpoint and Colab MCP access do not grant Google Drive access. Colab may require its normal per-runtime Drive consent even when the browser is already signed in.
+
+Check first; reuse a working mount. After the user has granted consent, retry mount once: a previous timed-out mount call may have returned before consent finished. Do not infer readiness from a closed dialog or a directory named `drive`.
+
+```powershell
+# Readiness only, no mount request or file writes on Drive.
+.conda\python.exe .agents/skills/colab-coccoc-playwright/scripts/drive_checkpoint.py
+
+# Normal mount + small publish/hash/restore probe in an explicitly chosen private directory.
+.conda\python.exe .agents/skills/colab-coccoc-playwright/scripts/drive_checkpoint.py --mount --probe --destination /content/drive/MyDrive/private-research/my-campaign --receipt storage/tools/drive-probe.json
+```
+
+The helper returns `AUTH_REQUIRED` (exit 2) if the mount is unavailable; the user completes any Google account consent in Colab. It never clicks account-consent controls or reads/transfers auth tokens. Read-only status checks do not need another user confirmation. On a known runtime, pass `--expected-boot-id` to reject accidental VM changes before a mount/write.
+
+`READY` plus `publish_restore_verified=true` proves a small synthetic checkpoint was published and restored through that Drive mount. It is not a destructive VM-loss test or proof that the actual experiment is saving automatically. Configure the experiment's raw/state/manifest/cache snapshots at safe boundaries before a long run. Keep large cache sets in archives rather than thousands of loose Drive files.
+
+Persist the receipt and wake a waiting task only on a material state transition, such as `AUTH_REQUIRED` to verified readiness. Send the event to the scheduler's actual wake path; for this workspace that is `<campaign>/operator_wake.json`. Heartbeats alone should not repeatedly call an LLM. A new VM requires the mount/readiness check again; a skill cannot guarantee that Google will never request consent again.

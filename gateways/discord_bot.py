@@ -333,7 +333,11 @@ class DiscordBotRunner:
                 lines.append("No active or recent tasks.")
             for t in tasks[:6]:
                 status_emoji = "✅" if t.status == "COMPLETED" else "⏳" if t.status in ("RESEARCHING", "OPERATING", "VALIDATING") else "⚠️"
-                lines.append(f"{status_emoji} **Task #{t.id:03d}** `[{t.status}]`: {t.title[:55]}")
+                from core.monitoring import status_line
+                line=f"{status_emoji} **Task #{t.id:03d}** `[{t.status}]`: {t.title[:55]}"
+                if self.conversation:
+                    line+=status_line(self.conversation.db,t.id)
+                lines.append(line)
 
             embed = discord.Embed(
                 title="Antigravity Workspace Status",

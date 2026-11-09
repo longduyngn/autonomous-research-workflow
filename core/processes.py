@@ -21,7 +21,7 @@ def stop_process_tree(proc):
 
 
 def run_process(argv, cwd, timeout=120, env=None, input_text=None, cancel_event=None,
-                stdout_path=None, stderr_path=None):
+                stdout_path=None, stderr_path=None, timeout_callback=None, hard_timeout=None):
     if not isinstance(argv, list) or not argv or not all(isinstance(x, str) for x in argv):
         raise ValueError("Command must be a nonempty argv list of strings")
     streams = ExitStack()
@@ -47,11 +47,21 @@ def run_process(argv, cwd, timeout=120, env=None, input_text=None, cancel_event=
         raise
     try:
         deadline = time.monotonic() + timeout
+        hard_deadline = time.monotonic() + (hard_timeout or timeout)
         while True:
             if cancel_event is not None and cancel_event.is_set():
                 raise InterruptedError("Task execution cancelled")
             remaining = deadline - time.monotonic()
             if remaining <= 0:
+                try:
+                    extension = timeout_callback() if timeout_callback else 0
+                except Exception:
+                    # A transient observer outage does not justify killing work.
+                    # The hard ceiling still bounds this conservative grace.
+                    extension = 60
+                if extension > 0 and time.monotonic() < hard_deadline:
+                    deadline = min(hard_deadline, time.monotonic()+extension)
+                    continue
                 raise subprocess.TimeoutExpired(argv, timeout)
             try:
                 stdout, stderr = proc.communicate(input=input_text, timeout=min(1, remaining) if cancel_event is not None else remaining)
@@ -59,6 +69,8 @@ def run_process(argv, cwd, timeout=120, env=None, input_text=None, cancel_event=
             except subprocess.TimeoutExpired:
                 input_text = None
                 if time.monotonic() >= deadline:
+                    if timeout_callback:
+                        continue
                     raise
         return {"exit_code": proc.returncode, "stdout": tail(stdout_path, stdout, 24000),
                 "stderr": tail(stderr_path, stderr, 12000)}

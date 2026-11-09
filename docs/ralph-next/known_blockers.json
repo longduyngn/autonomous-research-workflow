@@ -26,5 +26,8 @@
       "kind": "human_resource_setup",
       "reason": "An explicitly private durable mount and dedicated Colab runtime window need verification before live VM-loss probe"
     }
-  ]
+  ],
+  "historical_snapshot": true,
+  "current_review": "VERIFICATION_20261104.md",
+  "note": "Preserved initial blockers; later receipts supersede these observations. This is not the current queue."
 }

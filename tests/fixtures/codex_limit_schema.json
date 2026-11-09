@@ -1,0 +1,10 @@
+{
+  "provenance": "Codex CLI 0.167.0 generated schema, 2026-11-09; enum only, not observed exhaustion",
+  "reached_types": [
+    "rate_limit_reached",
+    "workspace_owner_credits_depleted",
+    "workspace_member_credits_depleted",
+    "workspace_owner_usage_limit_reached",
+    "workspace_member_usage_limit_reached"
+  ]
+}

@@ -39,6 +39,7 @@ class RoleName(str, Enum):
     COMMUNICATOR = "communicator"
     WORKSPACE_WATCHER = "workspace_watcher"
     WORLD_WATCHER = "world_watcher"
+    REMOTE_MANAGER = "remote_manager"
 
 
 @dataclass

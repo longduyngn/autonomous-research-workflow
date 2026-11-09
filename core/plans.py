@@ -31,4 +31,16 @@ def parse_plan(output):
             raise ValueError("Each check needs a nonempty argv array")
         if not all(isinstance(a, str) for a in check["argv"]):
             raise ValueError("Check argv must contain strings")
-    return {"mode": plan["mode"], "steps": steps, "checks": checks, 'backend': backend}
+    parsed = {"mode": plan["mode"], "steps": steps, "checks": checks, 'backend': backend}
+    if plan.get('simple') is True:
+        parsed['simple'] = True  # Optional hint for the quota router's light validator.
+    if 'requires' in plan:
+        required = plan['requires']
+        if not isinstance(required, dict) or any(
+                role not in {'researcher', 'operator', 'validator', 'communicator', 'remote_manager'}
+                or not isinstance(accounts, list) or not accounts
+                or not all(isinstance(a, str) and a.strip() for a in accounts)
+                for role, accounts in required.items()):
+            raise ValueError('Plan requires must map roles to nonempty quota-account lists')
+        parsed['requires'] = required
+    return parsed

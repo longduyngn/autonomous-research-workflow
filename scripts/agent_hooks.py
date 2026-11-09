@@ -33,7 +33,27 @@ def handle(provider, event, payload, workspace):
         args = {"patch": str(args)}
     command = args.get("CommandLine", args.get("command", args.get("cmd", "")))
     denied, reason = False, ""
-    if event == "PreToolUse" and tool in {"Bash", "run_command", "exec_command", "shell", "shell_command"}:
+    if event=='PreToolUse':
+        from core.control import check_worker_lease
+        try: check_worker_lease(os.environ)
+        except (PermissionError,KeyError,ValueError):
+            denied,reason=True,'Worker lease expired or changed; refusing stale tool effects'
+    if not denied and event=='PreToolUse' and os.environ.get('WORKFLOW_DIAGNOSTIC_READONLY')=='1':
+        allowed={'Read','read_file','view_file','list_dir','list_files','Glob','Grep','grep_search','find_by_name'}
+        if tool not in allowed:
+            denied,reason=True,'Diagnostic consultations are read-only; command/cloud/write tools are unavailable'
+        else:
+            from core.tools import AgentTools
+            paths=AgentTools(workspace,'workspace_watcher')
+            try:
+                selected=[args[key] for key in ('path','Path','file_path','AbsolutePath','FilePath','DirectoryPath','SearchDirectory','TargetFile')
+                          if args.get(key)]
+                if not selected or any(not isinstance(value,str) for value in selected):
+                    raise PermissionError('Diagnostic reads require an explicit scoped path')
+                for value in selected:paths.path(value)
+            except (ValueError,PermissionError):
+                denied,reason=True,'Diagnostic read must remain in its isolated facts workspace'
+    if not denied and event == "PreToolUse" and tool in {"Bash", "run_command", "exec_command", "shell", "shell_command"}:
         if not isinstance(command, str) or not command.strip():
             denied, reason = True, "Missing shell command"
         else:
@@ -68,6 +88,9 @@ def handle(provider, event, payload, workspace):
         return {"hookSpecificOutput": {"hookEventName": event, "additionalContext": context(workspace)}}
     if denied:
         return {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": reason}}
+    if event=='PreToolUse' and (state/'checkin-request.json').exists():
+        return {'hookSpecificOutput':{'hookEventName':event,'additionalContext':
+            'Supervisor requests a factual check-in. Read .workflow/checkin-request.json and answer its nonce through agent_checkin. Do not restart a running job.'}}
     return {}
 
 

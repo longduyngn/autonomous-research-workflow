@@ -17,26 +17,23 @@ def atomic_json(path, value):
         json.dump(value, f, ensure_ascii=False, indent=2)
         f.flush()
         os.fsync(f.fileno())
-    for attempt in range(10):
-        try:
-            os.replace(tmp, path)
-            return
-        except PermissionError:
+    try:
+        for attempt in range(10):
             try:
-                if path.exists():
-                    os.chmod(path, 0o666)
-            except OSError:
-                pass
-            if attempt == 9:
-                path.write_text(tmp.read_text(encoding='utf-8'), encoding='utf-8')
-                tmp.unlink(missing_ok=True)
+                os.replace(tmp, path)
                 return
-            time.sleep(0.05 * (attempt + 1))
+            except PermissionError:
+                if attempt == 9:
+                    raise
+                time.sleep(0.05 * (attempt + 1))
+    finally:
+        # Never truncate a valid state file when replacement remains blocked.
+        tmp.unlink(missing_ok=True)
 
 
 class RoleMemory:
     def __init__(self, root, role):
-        if role not in {'researcher', 'operator', 'validator', 'communicator', 'workspace_watcher', 'world_watcher'}:
+        if role not in {'researcher', 'operator', 'validator', 'communicator', 'workspace_watcher', 'world_watcher', 'remote_manager'}:
             raise ValueError('Unknown role')
         self.directory = Path(root) / '.workflow' / 'roles' / role
         self.directory.mkdir(parents=True, exist_ok=True)
@@ -101,7 +98,7 @@ class RoleMemory:
         if isinstance(usage,dict):
             context=usage.get('input_tokens')
             if isinstance(context,int) and context>=0:
-                state['context_tokens']=context+int(usage.get('cache_read_input_tokens') or usage.get('cache_read_tokens') or 0)
+                state['context_tokens']=context+int(usage.get('cache_read_input_tokens') or usage.get('cache_read_tokens') or 0)+int(usage.get('cache_creation_input_tokens') or 0)
         if not isinstance(state['session_id'],str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}',state['session_id']):
             state['session_id']=''
         atomic_json(self.path, state)

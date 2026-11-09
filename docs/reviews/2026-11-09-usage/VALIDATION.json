@@ -1,0 +1,16 @@
+{
+  "at": "2026-11-09T03:15:14.744858+00:00",
+  "audit_command": "python -B docs/reviews/2026-11-09-usage/independent_audit.py",
+  "audit": "PASS (existing defects reproduced, no production fixes)",
+  "ledger_tests_command": "python -B -m unittest discover -s storage/handoffs/smile-workflow-20261109/tools -p test_usage_ledger.py",
+  "ledger_tests": {
+    "passed": 3
+  },
+  "numeric_and_hash_assertions": "PASS",
+  "local_report_links": "PASS",
+  "report_fences_and_python_syntax": "PASS",
+  "live_model_gpu_discord_deployment": "NOT_RUN",
+  "report_words_whitespace": 7552,
+  "report_lines": 408,
+  "limitations": "No content-level exact token allocation, subscription quota attribution, A/B or live phone acceptance."
+}

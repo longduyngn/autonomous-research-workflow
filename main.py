@@ -104,6 +104,7 @@ def build_system(
         runner=runner,
         notify_callback=router.broadcast_notification,
         provider_override=provider_override,
+        quota_router=orchestrator.quota,
     )
 
     def _spawn_from_world(prompt: str, actor: str) -> None:
@@ -125,6 +126,7 @@ def build_system(
         notify_callback=router.broadcast_notification,
         task_spawn_callback=_spawn_from_world,
         provider_override=provider_override,
+        quota_router=orchestrator.quota,
     )
 
     return db, log_manager, orchestrator, workspace_watcher, world_watcher, router
@@ -296,9 +298,10 @@ def cmd_status(args: argparse.Namespace) -> None:
     if not tasks:
         print("  (No tasks recorded yet)")
     for t in tasks:
+        from core.monitoring import status_line
         print(
             f"  [Task #{t.id:03d}] status={t.status:<13} retries={t.retry_count}/{t.max_retries} "
-            f"channel={t.source_channel:<9} title='{t.title}' log={t.context_log_path}"
+            f"channel={t.source_channel:<9} title='{t.title}' log={t.context_log_path}"+status_line(db,t.id)
         )
 
     print(f"\n=== 3. Recent Events in SQLite ({db_path.name}) ===")
@@ -520,6 +523,18 @@ def main() -> None:
     p_colab = sub.add_parser("colab-bridge", help="Keep official personal Colab browser session connected")
     p_colab.add_argument("--port", type=int, default=8765)
     p_colab.set_defaults(func=colab_bridge)
+
+    def quota(args):
+        from core.quota_cli import run
+        cfg = load_config()
+        run(args, cfg, WORKSPACE_ROOT, WorkspaceDatabase(WORKSPACE_ROOT / cfg.get("database_path", "storage/events.db")))
+    p_quota = sub.add_parser("quota", help="Provider usage snapshots and opt-in quota routing (refresh forces one tiny Claude probe turn)")
+    p_quota.add_argument("action", choices=["status", "refresh", "route"])
+    p_quota.add_argument("role", nargs="?", default="", help="Role for `route` (what-if routing decision)")
+    p_quota.add_argument("--task", type=int, default=None, help="Task ID for `route` (honours its provider override)")
+    p_quota.add_argument("--requires", action="append", default=[], help="Account the work requires; may spend its reserve")
+    p_quota.add_argument("--json", action="store_true")
+    p_quota.set_defaults(func=quota)
 
     def enqueue(args):
         _, _, orchestrator, _, _, _ = build_system(load_config())

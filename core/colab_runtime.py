@@ -38,7 +38,7 @@ def runtime_status(skill):
         }""")
         # Only a known idle 'connect to new runtime' state establishes disconnect.
         # Unknown/loading states are not accepted as proof.
-        label = observed['label'].splitlines()[0].strip().casefold()
+        label = (observed['label'].splitlines() or [''])[0].strip().casefold()
         idle = observed['connect_button_present'] and label in {'connect', 'reconnect', 'kết nối', 'kết nối lại'}
         no_sessions = False
         if idle:

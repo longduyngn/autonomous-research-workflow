@@ -14,26 +14,10 @@ ENV/
 config/workflow_config.json
 
 # SQLite Database & Storage
+# Includes all runtime DBs, logs, task snapshots and local audit evidence.
 storage/
 archive/
 .workflow/
-storage/events.db*
-storage/logs/*.log
-storage/logs/agent_runs/
-storage/exports/
-storage/workspaces/
-storage/dry-run/
-storage/bot_heartbeat.json
-storage/tools/
-storage/final-tests.txt
-storage/*20261028*.txt
-storage/verification-20261028/
-storage/verification-*/
-.workflow/
-storage/archive/
-storage/TASKS.md
-storage/*.txt
-storage/cloud-preflight/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

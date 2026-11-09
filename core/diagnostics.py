@@ -35,9 +35,16 @@ def inspect_environment(root, config):
     from pathlib import Path
     report["agent_runtimes"] = {name: find_executable(name) for name in ("codex", "agy", "claude", "opencode")}
     report["provider_capabilities"] = {"codex_cli": "native hooks + final-answer file + JSON events",
-        "agy_cli": "native hooks + text transcript", "claude_cli": "native hooks + text transcript",
+        "agy_cli": "native hooks + text transcript", "claude_cli": "native hooks + stream-json final result and passive quota",
         "opencode_cli": "JSON events + named provider sessions; controller observation (no native workflow hooks)",
         "http_llm": "controller-managed tool loop; no native CLI session"}
+    block = config.get("quota_routing", {})
+    report["quota_routing"] = {"enabled": bool(block.get("enabled")), "configured": bool(block),
+        "poll_seconds": block.get("poll_seconds", 120), "reserve_percent": block.get("reserve_percent", 10),
+        "routed_roles": sorted(block.get("role_classes", {})),
+        "codex_rollout_dir_present": (Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex") / "sessions").is_dir(),
+        "claude_statusline_capture_present": (Path(root) / "storage/quota/claude_statusline.json").is_file(),
+        "note": "Opt-in. quota status uses configured probes (Codex read-only RPC/files; throttled Claude inference unless passive data is fresh). Doctor invokes none."}
     skills = Path(root) / ".agents/skills"
     report["task_integrations"] = {"skill_sources": sorted(p.parent.name for p in skills.glob("*/SKILL.md")),
         "generated_artifact_skill": "workflow-artifacts", "native_protocols": ["codex", "claude", "agy"],

@@ -4,7 +4,8 @@ Read README.md, docs/RALPH_DISCORD_RELEASE.md and docs/DISCORD_RELEASE_REVIEW.md
 Real user-origin Discord status/approval acceptance for probe #29 is verified.
 Duplicate approval confirmation was reproduced as an immediate-handler/heartbeat
 race; DB delivery claims now serialize both paths. See docs/DISCORD_DELIVERY_FIX.md.
-Native provider/account end-to-end execution remains separately unverified.
+Saved native-provider execution receipts are reviewed in
+docs/ralph-next/VERIFICATION_20261104.md; current account access requires a live check.
 
 ## Current contract
 
@@ -15,9 +16,10 @@ Native provider/account end-to-end execution remains separately unverified.
   DB facts and on-disk handoffs remain authoritative. Rotation writes handover.
 - Two task slots, maximum configurable three. Sequential Ralph within a task;
   milestones optional. One managed personal-Colab runtime, including CPU actions.
-- Real CLI sessions can require reload after configuration changes. Current live
-  blockers: AGY auth/timeout; Codex nested tool sandbox. Claude is not installed.
-  A passing fixture suite does not establish live account readiness.
+- Real CLI sessions can require reload after configuration changes. Earlier AGY
+  auth/timeout and Codex nested-tool failures have later successful probe receipts.
+  Claude Code is installed locally; a two-role CPU Colab pilot has live evidence
+  under storage/remote-claude/. Saved probes do not establish current account readiness.
 
 ## Maintaining source
 
@@ -43,8 +45,8 @@ Python 3.11+, local interpreter .conda/python.exe:
     python main.py --no-env doctor
     git diff --check
 
-Latest: 124 tests pass in working and exported tracked checkouts. Docker Compose
-config validates, but Docker daemon is unavailable; no Linux build is claimed.
+Latest verification is recorded in docs/ralph-next/VERIFICATION_20261104.md.
+Historical Docker build/doctor/dashboard receipts exist under storage/ralph-next/probes/I03.
 Live GPU/account history remains in dated docs. Before replacing listeners, verify
 no active tasks; never restart another experiment merely to perform acceptance.
 

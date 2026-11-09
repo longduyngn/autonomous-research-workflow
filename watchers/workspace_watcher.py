@@ -31,6 +31,7 @@ class WorkspaceWatcherDaemon:
         notify_callback: Optional[Callable[[str], None]] = None,
         provider_override: Optional[str] = None,
         task_spawn_callback: Optional[Callable[[str, str], None]] = None,
+        quota_router: Any = None,
     ) -> None:
         self.workspace_root = Path(workspace_root)
         self.config = config
@@ -41,6 +42,8 @@ class WorkspaceWatcherDaemon:
         self.notify_callback = notify_callback
         self.provider_override = provider_override
         self.task_spawn_callback = task_spawn_callback
+        self.quota_router = quota_router
+        self._route_seen: Dict[Any, Any] = {}
         self._last_anomaly_at = 0.0
         self._file_snapshot: Dict[str, float] = self._take_file_snapshot()
 
@@ -112,8 +115,14 @@ class WorkspaceWatcherDaemon:
 
         if not anomalies:
             return None
-        if time.monotonic() - self._last_anomaly_at < 600:
+        # The model review is the expensive part; the cheap checks above run every tick.
+        if self._last_anomaly_at and time.monotonic() - self._last_anomaly_at < float(self.watcher_cfg.get("llm_review_seconds", 600)):
             return None
+        role = RoleName.WORKSPACE_WATCHER.value
+        from core.quota import route_call
+        override, extra, decision = route_call(self.quota_router, self.db, self.config, role, self.provider_override, self._route_seen)
+        if decision is not None and decision.action == "wait":
+            return None  # Quota is out: skip the model review now, retry on a later tick.
         self._last_anomaly_at = time.monotonic()
 
         # Anomaly detected -> Spawn ephemeral `workspace_watcher` agent
@@ -126,9 +135,8 @@ class WorkspaceWatcherDaemon:
             payload={"anomalies": anomalies},
         )
 
-        role = RoleName.WORKSPACE_WATCHER.value
         role_cfg = self.config.get("roles", {}).get(role, {})
-        provider_name = self.provider_override or role_cfg.get("provider", "agy_headless_safe")
+        provider_name = override or role_cfg.get("provider", "agy_headless_safe")
         cli_log = self.log_manager.create_agent_cli_log_path(0, role)
 
         run_id = self.db.record_agent_spawn(
@@ -141,8 +149,12 @@ class WorkspaceWatcherDaemon:
             role=role,
             task_prompt=f"### Workspace Anomalies Detected\n{anomaly_report}\n",
             cli_log_path=cli_log,
-            provider_override=self.provider_override,
+            provider_override=override,
+            **extra,
         )
+        if self.quota_router is not None:
+            from core.quota import record_result
+            record_result(self.quota_router.store, self.config, role, res, decision)
         self.db.record_agent_shutdown(
             run_id=run_id,
             role=role,

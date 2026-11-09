@@ -114,3 +114,24 @@ VastAI, Runpod and SSH. No rented machine can be purchased by changing a config 
 Use `python main.py task <id>` or the read-only dashboard to inspect waits, approval
 details, plan/feedback revisions and role transcripts. Terminal state remains based
 on actual execution and validation, never on a conversation model's claim.
+
+## Recoverable researcher plan errors
+
+For instrumented long jobs, see [progress and W&B supervision](PROGRESS_MONITORING.md).
+Agent session expiry retains registered compute in WAITING_REMOTE; it is not
+automatically counted as an experiment failure. Downloaded artifacts and the
+original acceptance checks still gate completion.
+
+A rejected `research_plan` is returned to the researcher with the exact validation
+error and the accepted plan. The researcher chooses a correction before any
+operator work or user notification. The default is two repair attempts per
+research pass (`orchestrator.max_plan_repairs`, range 0?10). Repairs do not consume
+experiment retries or change task status. Backend, verified prefix and executable
+acceptance checks remain protected. Exhausted repairs follow the existing
+communicator/escalation path; provider failures and uncertain external actions
+retain their existing reconciliation rules.
+
+After manually stopping Colab, run `python main.py control reconcile-colab` to
+check the global session list and fence the previous resource owner. The runtime
+must report no active sessions before the resource becomes free. An empty/loading
+connection label remains unknown instead of raising an IndexError.

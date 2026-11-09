@@ -2,6 +2,13 @@
   "workspace_name": "Antigravity Autonomous Workspace",
   "database_path": "storage/events.db",
   "logs_dir": "storage/logs",
+  "role_turn_budget": {
+    "communicator": 5,
+    "validator": 15,
+    "researcher": 25,
+    "operator": 35,
+    "guardian": 20
+  },
   "orchestrator": {
     "poll_interval_seconds": 2.0,
     "max_concurrent_tasks": 2,
@@ -81,6 +88,10 @@
     },
     "dry_run_mock": {
       "type": "mock"
+    },
+    "remote_claude_operator": {
+      "type": "remote_claude_operator",
+      "quota_account": "remote_claude"
     },
     "codex_cli": {
       "type": "codex_cli",
@@ -190,7 +201,7 @@
     },
     "communicator": {
       "provider": "agy_headless_safe",
-      "model": "",
+      "model": "gemini-3.8-flash-medium",
       "effort": "low",
       "prompt_file": "roles/communicator.md",
       "timeout_seconds": 120,
@@ -199,16 +210,25 @@
     },
     "workspace_watcher": {
       "provider": "agy_headless_safe",
-      "model": "",
+      "model": "gemini-3.8-flash-low",
       "effort": "low",
       "prompt_file": "roles/workspace_watcher.md",
       "timeout_seconds": 180,
       "description": "Analyzes workspace anomalies, stuck tasks, or unexpected file changes when triggered by the internal daemon.",
       "tier": "fast"
     },
+    "remote_manager": {
+      "provider": "agy_headless_safe",
+      "model": "gemini-3.8-flash-medium",
+      "effort": "medium",
+      "tier": "fast",
+      "prompt_file": "roles/remote_manager.md",
+      "timeout_seconds": 300,
+      "description": "Opt-in reusable local AGY coordinator for the Colab worker; invoked with scripts/remote_agy.py."
+    },
     "world_watcher": {
       "provider": "agy_headless_safe",
-      "model": "",
+      "model": "gemini-3.8-flash-low",
       "effort": "low",
       "prompt_file": "roles/world_watcher.md",
       "timeout_seconds": 180,
@@ -220,6 +240,7 @@
     "workspace": {
       "enabled": false,
       "check_interval_seconds": 30,
+      "llm_review_seconds": 1800,
       "stuck_task_threshold_seconds": 900,
       "ignored_dirs": [
         ".git",
@@ -321,5 +342,112 @@
       "colab-mcp"
     ],
     "colab_revision": "b9ab3899e0f1fa493390b1fd6d54aa2e464ecdf1"
+  },
+  "quota_routing": {
+    "enabled": false,
+    "poll_seconds": 120,
+    "reserve_percent": 10,
+    "stale_seconds": 900,
+    "default_cooldown_seconds": 900,
+    "sticky_routes": true,
+    "light_validator": false,
+    "accounts": {
+      "codex": {
+        "probe": "codex_app_server",
+        "probe_interval_seconds": 120
+      },
+      "claude": {
+        "probe": [
+          "claude_cli",
+          "claude_statusline"
+        ],
+        "probe_model": "haiku",
+        "probe_interval_seconds": 1800
+      },
+      "agy:claude": {},
+      "agy:gemini-3.8-flash": {},
+      "agy:gemini-4-argon": {
+        "unlimited": true
+      },
+      "remote_claude": {}
+    },
+    "classes": {
+      "frontier": [
+        {
+          "provider": "claude_cli",
+          "model": "opus"
+        },
+        {
+          "provider": "codex_cli",
+          "model": "gpt-6-astra"
+        },
+        {
+          "provider": "agy_headless_safe",
+          "model": "claude-opus-5-5-high"
+        }
+      ],
+      "worker": [
+        {
+          "provider": "claude_cli",
+          "model": "sonnet"
+        },
+        {
+          "provider": "codex_cli",
+          "model": "gpt-6.1-sol"
+        },
+        {
+          "provider": "agy_headless_auto",
+          "model": "claude-sonnet-5-5-medium"
+        }
+      ],
+      "light": [
+        {
+          "provider": "agy_headless_safe",
+          "model": "gemini-3.8-flash-medium"
+        },
+        {
+          "provider": "agy_headless_safe",
+          "model": "gemini-3.8-flash-low"
+        }
+      ]
+    },
+    "reserve": {
+      "frontier": [
+        {
+          "provider": "agy_headless_safe",
+          "model": "gemini-4-argon-high"
+        }
+      ],
+      "worker": [
+        {
+          "provider": "agy_headless_auto",
+          "model": "gemini-4-argon-medium"
+        }
+      ],
+      "light": [
+        {
+          "provider": "agy_headless_safe",
+          "model": "gemini-4-argon-low"
+        }
+      ]
+    },
+    "role_classes": {
+      "researcher": "frontier",
+      "operator": "worker",
+      "validator": "worker",
+      "communicator": "light",
+      "remote_manager": "light",
+      "workspace_watcher": "light",
+      "world_watcher": "light"
+    },
+    "requires": {},
+    "workarounds": {}
+  },
+  "monitoring": {
+    "enabled": true,
+    "agent_review_seconds": 900,
+    "max_agent_seconds": 21600,
+    "max_diagnostics_per_job": 2,
+    "project": "antigravity-research"
   }
 }

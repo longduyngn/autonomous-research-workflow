@@ -76,6 +76,22 @@ function renderDetail(t) {
   if (t.parent_task_id)
     meta.append(node("span", `Recovery of #${t.parent_task_id}`));
   a.append(meta);
+  if ((t.agent_diagnoses || []).length) a.append(detailBlock('Agent health consultations', JSON.stringify(t.agent_diagnoses, null, 2)));
+  for (const job of t.experiment_jobs || []) {
+    const box = node('section');
+    box.append(node('h3', `Experiment ${job.id.slice(0, 8)} · ${job.state}`));
+    box.append(node('p', `${job.stage}: ${job.completed}/${job.total || '?'} · last useful progress ${Math.round(job.progress_age_seconds)}s ago · telemetry ${job.telemetry_status} · W&B ${job.wandb_status || 'unconfigured'}`));
+    box.append(node('p', `Heartbeat age: ${job.heartbeat_age_seconds == null ? 'unknown' : Math.round(job.heartbeat_age_seconds) + 's'} · last observation: ${job.telemetry_age_seconds == null ? 'unknown' : Math.round(job.telemetry_age_seconds) + 's ago'}`));
+    if (job.total) {
+      const progress = node('progress'); progress.max = job.total; progress.value = job.completed; box.append(progress);
+    }
+    if (job.wandb_url && /^https:\/\/(wandb\.ai|(?:wandb\.)?forge\.coreweave\.com)\//.test(job.wandb_url)) {
+      const link = node('a', 'Open W&B run'); link.href = job.wandb_url; link.target = '_blank'; link.rel = 'noopener noreferrer'; box.append(link);
+    }
+    if (job.diagnosis && job.diagnosis.assessment) box.append(detailBlock('Read-only stall diagnosis', JSON.stringify(job.diagnosis, null, 2)));
+    if (job.metrics && Object.keys(job.metrics).length) box.append(detailBlock('Latest experiment metrics', JSON.stringify(job.metrics, null, 2)));
+    a.append(box);
+  }
   const stages = node("div", undefined, "stages");
   const order = [
     "PENDING",

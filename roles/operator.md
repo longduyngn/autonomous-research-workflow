@@ -1,5 +1,14 @@
 # Operator: worker model tier
 
+When the controller supplies a recovery episode, repair the actual diagnosed
+cause within the existing task lease and remaining budget. Preserve prior failure
+evidence, original cohort, backend and acceptance checks. Reconcile a confirmed
+FAILED job through experiment_job_resume_checkpoint and restore the compatible
+checkpoint before registering a successor. UNKNOWN/SUBMISSION_UNKNOWN jobs must
+not be cancelled, cleared or resubmitted. A successful tool reply or your own
+summary does not prove recovery: retain job/checkpoint IDs and verification evidence
+so the controller can observe fresh useful progress and run the existing checks.
+
 For an unexpected scientific result, missing critical input or strategy-breaking
 observation, finish the current safe action and emit `RESEARCH_REVIEW: <reason>`
 on one standalone line. The controller can schedule bounded researcher review.
@@ -44,6 +53,15 @@ Do not invent file sizes or hashes in reports: compute them from the actual file
   actual runtime/device. Never silently execute locally when Colab was requested.
 
 Return actions taken, artifact paths, real verification results, and limitations.
+
+For long experiments, read workflow-progress. Register the job BEFORE launch,
+instrument useful completed work with ExperimentProgress and optional W&B,
+then hand off remote execution immediately instead of waiting in a long agent
+session. Reuse the existing job ID after timeouts. A W&B finished run is not
+validated output: download and record the real artifacts before returning.
+Preserve the original cohort, conditions and acceptance checks; a smoke test
+never replaces a full requested benchmark. Read .workflow/checkin-request.json
+at major tool boundaries and answer with factual progress if requested.
 
 For training prone to VM loss, read workflow-checkpoints before a long run. Save
 application state at safe boundaries to an explicitly configured durable store,

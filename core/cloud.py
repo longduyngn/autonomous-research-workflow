@@ -69,6 +69,7 @@ class CloudTools:
         self.root = Path(root).resolve()
         self.controller = Path(os.environ.get("WORKFLOW_CONTROLLER_ROOT", str(Path(__file__).resolve().parent.parent))).resolve()
         self.config = (config or {}).get("cloud", {})
+        self.workflow_config = config or {}
         self.paths = AgentTools(self.root, "operator")
 
     def path(self, value):
@@ -152,9 +153,28 @@ class CloudTools:
             schema("colab_connect", "Open official Colab browser connection (auto-confirms via Coc Coc Playwright if CDP port 9222 is open; reuses active session if already connected)", {"force": {"type": "boolean"}}),
             schema("colab_call", "Call a tool from colab_tools or high-level workflow action (set_runtime, disconnect_runtime, run_notebook, read_live_output)", {"name": string, "arguments": {"type": "object"}}, ["name"]),
             schema("colab_release", "Close this task's browser bridge transport AFTER shutting down unused remote compute; pass force=true to close shared session", {"force": {"type": "boolean"}}),
-            schema("kaggle_execute_notebook", "Stage an isolated Kaggle kernel and submit a real cloud run; records job ID", {**notebook, "hardware": string, "kaggle_kernel_slug": string, "input_files": {"type": "array", "items": string}, "dataset_sources": {"type": "array", "items": string}, "competition_sources": {"type": "array", "items": string}, "timeout_seconds": {"type": "integer"}}, ["notebook_path"]),
+            schema("kaggle_execute_notebook", "Stage an isolated Kaggle kernel and submit a real cloud run; records job ID", {**notebook, "hardware": string, "kaggle_kernel_slug": string, "input_files": {"type": "array", "items": string}, "dataset_sources": {"type": "array", "items": string}, "competition_sources": {"type": "array", "items": string}, "timeout_seconds": {"type": "integer"}, 'total':{'type':'number'},'stall_seconds':{'type':'number'}}, ["notebook_path"]),
             schema("kaggle_job_status", "Poll a submitted Kaggle run once; no blocking GPU wait", {"job_id": string}, ["job_id"]),
             schema("kaggle_export_data", "Download outputs of a completed Kaggle job into its task workspace", {"job_id": string}, ["job_id"]),
+            schema('experiment_job_register', 'Register job identity BEFORE launch. Reusing request_key never resubmits. Use one job for sequential stages; completed counts must be monotonic.',
+                   {'request_key':string,'backend':{'enum':['colab','kaggle','local']},'external_id':string,
+                    'wandb_path':string,'total':{'type':'number'},'stall_seconds':{'type':'number'},
+                    'budget_seconds':{'type':'number'}}, ['request_key','backend']),
+            schema('experiment_job_status', 'Read tracked progress; no compute launch', {'job_id':string}, ['job_id']),
+            schema('experiment_job_track', 'Bind the W&B entity/project/run_id returned by the job-side SDK to this registered job',
+                   {'job_id':string,'wandb_path':string},['job_id','wandb_path']),
+            schema('agent_checkin', 'Answer .workflow/checkin-request.json nonce. This is a self-report, not verified progress.',
+                   {'nonce':string,'stage':string,'completed':{'type':'number'},
+                    'blocking_on':{'enum':['none','model_download','tool','gpu','network','unknown']}},['nonce','stage','completed','blocking_on']),
+            schema('experiment_job_progress', 'Report monotonic useful work, not heartbeat-only progress',
+                   {'job_id':string,'completed':{'type':'number'},'total':{'type':'number'},'stage':string,
+                    'state':{'enum':['RUNNING','COMPLETED','FAILED','UNKNOWN']},'metrics':{'type':'object'}},['job_id']),
+            schema('colab_job_start', 'Start a registered Colab cell ONCE, then return immediately. Cell must log WORKFLOW_PROGRESS markers using workflow-progress helper.',
+                   {'job_id':string},['job_id']),
+            schema('experiment_job_artifacts', 'Record explicitly downloaded output files after compute completion. Existing acceptance checks still decide validity.',
+                   {'job_id':string,'files':{'type':'array','items':string}},['job_id','files']),
+            schema('experiment_job_resume_checkpoint', 'Reconcile a confirmed FAILED job using a verified controller checkpoint whose metadata.job_id matches. UNKNOWN jobs cannot be retried.',
+                   {'job_id':string,'checkpoint_id':string},['job_id','checkpoint_id']),
         ]
 
     def call(self, name, args):
@@ -167,6 +187,114 @@ class CloudTools:
     def notebook_inspect(self, args):
         path = self.path(args["notebook_path"])
         return {"notebook_path": str(path), **json.loads(path.read_text(encoding="utf-8"))}
+
+    def _progress_context(self):
+        from core.control import check_worker_lease
+        check_worker_lease(os.environ)
+        import sqlite3
+        from contextlib import closing
+        from core.database import WorkspaceDatabase
+        from core.monitoring import ProgressStore
+        path=self.controller / self.workflow_config.get('database_path','storage/events.db')
+        if not path.is_file(): raise PermissionError('No registered task database')
+        # Check without migrating/touching an unrelated controller DB during
+        # standalone cloud-tool use or isolated tests.
+        with closing(sqlite3.connect(path.resolve().as_uri()+'?mode=ro',uri=True)) as c:
+            c.row_factory=sqlite3.Row
+            rows = c.execute('SELECT id,workspace_path FROM tasks WHERE workspace_path=?',(str(self.root),)).fetchall()
+        if len(rows) != 1:
+            raise PermissionError('Progress tools require a registered task workspace')
+        return ProgressStore(WorkspaceDatabase(path)), rows[0]['id']
+
+    def experiment_job_register(self,args):
+        store,task_id = self._progress_context()
+        job,new = store.register(task_id,args['request_key'],args['backend'],args.get('external_id',''),
+            args.get('wandb_path',''),args.get('total',0),args.get('stall_seconds',900),args.get('budget_seconds',43200))
+        return {'job':job,'newly_registered':new,'submission_performed':False,
+                'tracking_defaults':{k:self.workflow_config.get('monitoring',{}).get(k,default)
+                                     for k,default in [('project','antigravity-research'),('entity',None)]}}
+
+    def experiment_job_status(self,args):
+        store,task_id = self._progress_context()
+        return store.get(args['job_id'],task_id)
+
+    def experiment_job_track(self,args):
+        store,task_id=self._progress_context()
+        store.get(args['job_id'],task_id)
+        return store.attach_wandb(args['job_id'],args['wandb_path'])
+
+    def agent_checkin(self,args):
+        request=json.loads((self.root/'.workflow/checkin-request.json').read_text(encoding='utf-8'))
+        if args['nonce']!=request['nonce']: raise ValueError('Stale check-in request')
+        from core.experiment_progress import numeric_metrics
+        numeric_metrics({'completed':args['completed']})
+        if not re.fullmatch(r'[a-zA-Z0-9 _./-]{1,80}',args['stage']): raise ValueError('Invalid stage')
+        if args['blocking_on'] not in {'none','model_download','tool','gpu','network','unknown'}: raise ValueError('Invalid block reason')
+        from core.role_memory import atomic_json
+        record={k:args[k] for k in ('nonce','stage','completed','blocking_on')}
+        record.update(observed_at=time.time(),source='agent_self_report_unverified')
+        atomic_json(self.root/'.workflow/checkin-response.json',record)
+        return {'status':'checkin_recorded_unverified'}
+
+    def experiment_job_progress(self,args):
+        store,task_id = self._progress_context()
+        store.get(args['job_id'],task_id)
+        return store.observe(args['job_id'],{k:v for k,v in args.items() if k!='job_id'})
+
+    def colab_job_start(self,args):
+        store,task_id = self._progress_context()
+        job = store.get(args['job_id'],task_id)
+        if job['backend']!='colab' or not job['external_id']:
+            raise ValueError('Register the prepared Colab cell ID before launch')
+        if time.time()>job['budget_until']:
+            raise ValueError('Job budget expired before launch; reconcile instead of starting compute')
+        with store.db._connect() as c:
+            # Commit uncertain submission BEFORE the browser effect. Crash -> reconcile,
+            # never blindly click Run a second time.
+            cur=c.execute("UPDATE experiment_jobs SET state='SUBMISSION_UNKNOWN' WHERE id=? AND state='REGISTERED'",(job['id'],))
+        if cur.rowcount==0:
+            return {'status':'not_resubmitted','job':store.get(job['id'])}
+        result=self._colab('/browser',{'name':'trigger_cell_run','arguments':{'cellId':job['external_id']}},timeout=20)
+        return {'status':'submitted_unverified','job_id':job['id'],'browser_result':result}
+
+    def experiment_job_artifacts(self,args):
+        store,task_id = self._progress_context()
+        job=store.get(args['job_id'],task_id)
+        if job['state']!='COMPLETED':
+            raise ValueError('Compute completion must be observed before recording downloads')
+        if job['total'] and job['completed'] < job['total']:
+            raise ValueError('Job ended before its declared cohort was completed')
+        files=args['files']
+        if not files or len(files)>10000:
+            raise ValueError('List downloaded output files explicitly')
+        records=[]
+        for name in files:
+            path=self.path(name)
+            if not path.is_file() or path.is_symlink() or not path.stat().st_size:
+                raise ValueError('Missing/empty output file')
+            records.append({'path':str(path.relative_to(self.root)),'bytes':path.stat().st_size,
+                            'sha256':hashlib.sha256(path.read_bytes()).hexdigest()})
+        from core.role_memory import atomic_json
+        atomic_json(self.root/'.workflow'/('job-'+job['id']+'-artifacts.json'),{'job_id':job['id'],'files':records})
+        with store.db._connect() as c:
+            c.execute('BEGIN IMMEDIATE')
+            c.execute("UPDATE experiment_jobs SET state='ARTIFACTS_READY' WHERE id=? AND state='COMPLETED'",(job['id'],))
+            c.execute("UPDATE tasks SET remote_job_id='' WHERE id=? AND remote_job_id=?",(task_id,job['id']))
+        return {'status':'artifacts_downloaded_unvalidated','files':records}
+
+    def experiment_job_resume_checkpoint(self,args):
+        store,task_id=self._progress_context()
+        job=store.get(args['job_id'],task_id)
+        if job['state']!='FAILED': raise ValueError('Only a confirmed failed job can be reconciled for retry')
+        manifest=self._checkpoint_store().verify(args['checkpoint_id'],{'job_id':job['id']})
+        with store.db._connect() as c:
+            c.execute('BEGIN IMMEDIATE')
+            c.execute("UPDATE experiment_jobs SET state='RECONCILED' WHERE id=? AND state='FAILED'",(job['id'],))
+            c.execute("UPDATE tasks SET remote_job_id='' WHERE id=? AND remote_job_id=?",(task_id,job['id']))
+        store.db.log_event('JOB_CHECKPOINT_RECONCILED','operator','Confirmed failed job reconciled with verified checkpoint',task_id=task_id,
+                           payload={'job_id':job['id'],'checkpoint_id':manifest['id']})
+        return {'status':'checkpoint_verified','checkpoint_id':manifest['id'],
+                'next':'Restore the matching checkpoint, then explicitly register a new request key. No job was launched.'}
 
     def _checkpoint_store(self):
         from core.checkpoints import CheckpointStore
@@ -302,6 +430,8 @@ class CloudTools:
                 "exported_files": [str(p.relative_to(self.root)) for p in export.rglob("*") if p.is_file()]}
 
     def _colab(self, endpoint, data, timeout=310):
+        from core.control import check_worker_lease
+        check_worker_lease(os.environ)
         from core.role_memory import atomic_json
         token_file=self.root/'.workflow/colab-ownership.json'
         if endpoint not in {'/claim','/release'} and not token_file.is_file():
@@ -401,6 +531,15 @@ class CloudTools:
     def colab_call(self, args):
         name = args["name"]
         call_args = args.get("arguments", {}) or {}
+        if name in {'trigger_cell_run','run_code_cell'} and call_args.get('cellId'):
+            try:
+                store,task_id=self._progress_context()
+            except PermissionError:
+                store=None
+            if store:
+                registered=next((j for j in store.jobs(task_id) if j['backend']=='colab' and j['external_id']==call_args['cellId']),None)
+                if registered:
+                    return self.colab_job_start({'job_id':registered['id']})
 
         # High-level workflow actions integrated directly into colab_call
         if name in {"set_runtime", "disconnect_runtime", "trigger_cell_run", "runtime_status"}:
@@ -490,6 +629,8 @@ class CloudTools:
         return self._colab("/release", dict(args or {}), timeout=40)
 
     def _kaggle(self, argv, timeout=120):
+        from core.control import check_worker_lease
+        check_worker_lease(os.environ)
         self._load_env_if_needed()
         exe = find_executable("kaggle")
         if not exe:
@@ -538,10 +679,19 @@ class CloudTools:
             "datasets": args.get("dataset_sources", []), "competitions": args.get("competition_sources", []),
             "timeout_seconds": args.get("timeout_seconds", 36000)}
         fingerprint = hashlib.sha256(json.dumps(fingerprint_data, sort_keys=True).encode()).hexdigest()
+        try: progress,task_id=self._progress_context()
+        except PermissionError: progress,task_id=None,None
+        def bind(job):
+            if not progress: return job
+            tracked,_=progress.register(task_id,'kaggle-'+fingerprint[:40],'kaggle',external_id=job['id'],
+                total=args.get('total',0),stall_seconds=args.get('stall_seconds',900),
+                budget_seconds=args.get('timeout_seconds',36000))
+            job['tracking_id']=tracked['id']
+            return job
         for previous in self.path(".workflow/cloud_jobs").glob("*/job.json"):
             saved = json.loads(previous.read_text(encoding="utf-8"))
             if saved.get("fingerprint") == fingerprint and not args.get("force"):
-                return {**saved, "reused_submission": True}
+                return {**bind(saved), "reused_submission": True}
         job_id = uuid.uuid4().hex
         slug = slug or f"{username}/workflow-{path.stem[:25].lower().replace('_','-')}-{job_id[:8]}"
         if not re.fullmatch(r"[A-Za-z0-9_-]+/[A-Za-z0-9_-]+", slug):
@@ -574,6 +724,16 @@ class CloudTools:
         job = {"id": job_id, "backend": "kaggle", "slug": slug, "hardware": hardware,
                "state": "submitting", "created_at": time.time(), "fingerprint": fingerprint}
         job_file.write_text(json.dumps(job, indent=2), encoding="utf-8")
+        job=bind(job)
+        if progress:
+            # Register task ownership and an uncertain submission before push.
+            progress.observe(job['tracking_id'],{'state':'SUBMISSION_UNKNOWN'})
+            bootstrap=("import os\nos.environ['WORKFLOW_EXPERIMENT_JOB_ID'] = "+repr(job['tracking_id'])+
+                       "\nos.environ['WORKFLOW_JOB_BUDGET_SECONDS'] = "+repr(str(args.get('timeout_seconds',36000)))+'\n')
+            nb['cells'].insert(0,{'cell_type':'code','id':uuid.uuid4().hex[:8],'metadata':{},
+                                  'source':bootstrap.splitlines(keepends=True),'outputs':[],'execution_count':None})
+            (stage/path.name).write_text(json.dumps(nb,indent=2),encoding='utf-8')
+            job_file.write_text(json.dumps(job,indent=2),encoding='utf-8')
         argv = ["push", "-p", str(stage), "--timeout", str(max(1, int(args.get("timeout_seconds", 36000))))]
         if hardware != "CPU" and accelerators[hardware]:
             argv += ["--accelerator", accelerators[hardware]]

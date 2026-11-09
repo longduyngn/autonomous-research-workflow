@@ -5,6 +5,19 @@ import time
 import uuid
 
 
+def check_worker_lease(context):
+    """Fence native/API tool calls from a worker whose controller lease expired."""
+    owner=context.get('WORKFLOW_WORKER_OWNER')
+    if not owner: return
+    import sqlite3
+    from contextlib import closing
+    with closing(sqlite3.connect(context['WORKFLOW_DB_PATH'],timeout=5)) as c:
+        row=c.execute('SELECT lease_owner,lease_expires,status FROM tasks WHERE id=?',
+                      (int(context['WORKFLOW_TASK_ID']),)).fetchone()
+    if not row or row[0]!=owner or row[1]<time.time() or row[2] in {'COMPLETED','FAILED','ESCALATED'}:
+        raise PermissionError('Worker lease is stale; existing compute must be observed by the current controller')
+
+
 def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 

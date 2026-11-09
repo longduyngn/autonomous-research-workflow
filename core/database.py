@@ -149,6 +149,9 @@ class WorkspaceDatabase:
                 "attempt": "INTEGER NOT NULL DEFAULT 1",
                 "run_label": "TEXT NOT NULL DEFAULT ''",
                 "session_id": "TEXT NOT NULL DEFAULT ''",
+                "usage_json": "TEXT NOT NULL DEFAULT '{}'",
+                "num_turns": "INTEGER NOT NULL DEFAULT 0",
+                "total_cost_usd": "REAL NOT NULL DEFAULT 0",
             }.items():
                 if name not in run_columns:
                     conn.execute(f"ALTER TABLE agent_runs ADD COLUMN {name} {definition}")
@@ -304,6 +307,20 @@ class WorkspaceDatabase:
                 conn.execute("UPDATE agent_runs SET status='INTERRUPTED', shutdown_at=? WHERE task_id=? AND status='RUNNING'",
                              (utc_now_iso(), row["id"]))
                 old = conn.execute("SELECT * FROM tasks WHERE id=?", (row["id"],)).fetchone()
+                monitored=conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='experiment_jobs'").fetchone()
+                tracked=(conn.execute("SELECT id FROM experiment_jobs WHERE task_id=? AND id=? AND state NOT IN ('ARTIFACTS_READY','RECONCILED')",
+                         (row['id'],old['remote_job_id'])).fetchone() if monitored and old['remote_job_id'] else None)
+                if tracked and old['status'] not in {'COMPLETED','FAILED','ESCALATED'}:
+                    # A durable job proves what to observe, not that a command
+                    # may be replayed. Fence the old worker and restore polling.
+                    conn.execute("UPDATE tasks SET status='WAITING_REMOTE',current_role=NULL,lease_owner='',lease_expires=0,outcome='',waiting_seconds=waiting_seconds+? WHERE id=?",
+                                 (max(0,now-old['heartbeat_at']),row['id']))
+                    conn.execute('INSERT OR REPLACE INTO task_waits VALUES(?,?,?,?,?,?,?)',
+                                 (row['id'],'REMOTE','WAITING_REMOTE','Controller restarted; reconcile the existing registered job',tracked['id'],now,now+1))
+                    continue
+                from core.recovery import queue_expired_worker
+                if queue_expired_worker(conn,old,now):
+                    continue
                 if old["status"] not in {"COMPLETED", "FAILED", "ESCALATED"}:
                     message = f"Task #{row['id']}: ESCALATED. Worker lease expired; inspect workspace and remote jobs before resuming. Workspace: {old['workspace_path']}"
                     conn.execute("UPDATE tasks SET final_response=? WHERE id=?", (message, row["id"]))

@@ -34,7 +34,7 @@ def handle_rpc_request(msg):
     elif method == "tools/call":
         try:
             name = params["name"]
-            if os.environ.get("WORKFLOW_ROLE", "operator") not in {"operator", "validator"} and name not in {'notebook_inspect','compute_capabilities'}:
+            if os.environ.get("WORKFLOW_ROLE", "operator") not in {"operator", "validator"} and name not in {'notebook_inspect','compute_capabilities','agent_checkin','experiment_job_status'}:
                 raise PermissionError("This role can only inspect notebook artifacts")
             value = tools.call(name, params.get("arguments", {}))
             failed = bool(value.get("error") or value.get("status") in {"error", "missing_credentials"}

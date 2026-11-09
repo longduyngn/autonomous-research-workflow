@@ -1,4 +1,4 @@
-"""Durable, conservative intake. Conversation does not implicitly create work."""
+"""Durable scoped intake; controller validates communicator proposals before commit."""
 import json
 import re
 import threading
@@ -9,9 +9,10 @@ TERMINAL = {'COMPLETED', 'FAILED', 'ESCALATED'}
 
 
 class Conversation:
-    def __init__(self, db, submit=None, reply=None):
+    def __init__(self, db, submit=None, reply=None, workspace_root=None, logs_dir=None):
         self.db, self.submit = db, submit
         self.reply=reply
+        self.workspace_root,self.logs_dir=workspace_root,logs_dir
         self.lock=threading.RLock()
         with db._connect() as c:
             c.executescript('''
@@ -29,24 +30,36 @@ class Conversation:
                 c.execute("ALTER TABLE intake_messages ADD COLUMN options TEXT NOT NULL DEFAULT '{}'")
             if 'delivery_channel' not in columns:
                 c.execute("ALTER TABLE intake_messages ADD COLUMN delivery_channel TEXT NOT NULL DEFAULT ''")
-            for name,definition in {'delivery_owner':"TEXT NOT NULL DEFAULT ''",'delivery_until':'REAL NOT NULL DEFAULT 0'}.items():
+            for name,definition in {'delivery_owner':"TEXT NOT NULL DEFAULT ''",'delivery_until':'REAL NOT NULL DEFAULT 0',
+                                    'intake_owner':"TEXT NOT NULL DEFAULT ''",'intake_until':'REAL NOT NULL DEFAULT 0',
+                                    'intent_json':"TEXT NOT NULL DEFAULT ''"}.items():
                 if name not in columns:c.execute(f'ALTER TABLE intake_messages ADD COLUMN {name} {definition}')
 
     def receive(self, message, scope, actor, event_key, reply_key='', explicit=False, input_files=None,delivery_channel=''):
         with self.lock:
-            return self._receive(message,scope,actor,event_key,reply_key,explicit,input_files,delivery_channel)
+            owner = uuid.uuid4().hex
+            with self.db._connect() as c:
+                c.execute('BEGIN IMMEDIATE')
+                c.execute('INSERT OR IGNORE INTO intake_messages(event_key,scope,actor,message,reply_key,options,delivery_channel) VALUES(?,?,?,?,?,?,?)',
+                          (event_key,scope,actor,message,reply_key,json.dumps({'explicit':explicit,'input_files':[str(p) for p in input_files or []]}),delivery_channel or scope))
+                row = c.execute('SELECT * FROM intake_messages WHERE event_key=?',(event_key,)).fetchone()
+                if not actor or not event_key or not scope or (row['scope'],row['actor'],row['message'],row['reply_key']) != (scope,actor,message,reply_key):
+                    raise ValueError('Stable message identity/content is required')
+                if row['response'] or row['intake_until'] > time.time():
+                    return dict(row)
+                c.execute('UPDATE intake_messages SET intake_owner=?,intake_until=? WHERE event_key=?',
+                          (owner,time.time()+3600,event_key))
+            try:
+                self._receive(message,scope,actor,event_key,reply_key,explicit,input_files,delivery_channel,owner)
+            finally:
+                with self.db._connect() as c:
+                    c.execute("UPDATE intake_messages SET intake_owner='',intake_until=0 WHERE event_key=? AND intake_owner=?",(event_key,owner))
+            with self.db._connect() as c:
+                return dict(c.execute('SELECT * FROM intake_messages WHERE event_key=?',(event_key,)).fetchone())
 
-    def _receive(self, message, scope, actor, event_key, reply_key='', explicit=False, input_files=None,delivery_channel=''):
-        if not actor or not event_key or not scope:
-            raise ValueError('Stable actor, channel and message IDs are required')
+    def _receive(self, message, scope, actor, event_key, reply_key='', explicit=False, input_files=None,delivery_channel='',owner=''):
         with self.db._connect() as c:
-            c.execute('INSERT OR IGNORE INTO intake_messages(event_key,scope,actor,message,reply_key,options,delivery_channel) VALUES(?,?,?,?,?,?,?)',
-                      (event_key, scope, actor, message, reply_key, json.dumps({'explicit':explicit, 'input_files':[str(p) for p in input_files or []]}),delivery_channel or scope))
             row = c.execute('SELECT * FROM intake_messages WHERE event_key=?', (event_key,)).fetchone()
-            if (row['scope'], row['actor'], row['message']) != (scope, actor, message):
-                raise ValueError('Message ID reused with different content or identity')
-            if row['response']:
-                return dict(row)
             saved = json.loads(row['options'])
             explicit, input_files = saved.get('explicit', False), saved.get('input_files', [])
         text = message.strip()
@@ -61,6 +74,68 @@ class Conversation:
         target = int(match[1]) if match else (linked['task_id'] if linked else None)
         if intent == 'chat' and linked and linked['task_id'] in tasks:
             intent = 'feedback'
+        proposed=False
+        if intent == 'chat' and (self.reply or row['intent_json']):
+            proposed=True
+            from core.conversation_intents import parse_intent, public_text, task_facts
+            fallback = {'version':1,'intent':'clarify','task_id':None,
+                        'reply':'I could not interpret this request safely. Please restate it or use !task, !feedback <id>, or !status.'}
+            proposal = json.loads(row['intent_json']) if row['intent_json'] else None
+            if proposal is None:
+                with self.db._connect() as c:
+                    history=[{'message':public_text(r['message']), 'response':public_text(r['response'])} for r in c.execute(
+                        'SELECT message,response FROM intake_messages WHERE scope=? AND actor=? AND event_key!=? AND response!=\'\' ORDER BY rowid DESC LIMIT 8',
+                        (scope,actor,event_key))]
+                try:
+                    candidate=self.reply(scope,actor,public_text(text,6000),list(reversed(history)),task_facts(self.db,list(tasks.values())))
+                    # Old reply callbacks may return ordinary conversational text. They never mutate.
+                    if candidate is None:
+                        proposal={**fallback,'intent':'chat','reply':
+                            'This message was saved; no new task was started. Use !task <instructions>, !feedback <id> <change>, or !status.'}
+                    elif isinstance(candidate,str) and not candidate.lstrip().startswith(('{','[')):
+                        proposal={**fallback,'intent':'chat','reply':candidate[:1800]} if candidate else fallback
+                    else:
+                        proposal=parse_intent(candidate)
+                except Exception as exc:
+                    proposal=fallback
+                    self.db.log_event('CONVERSATION_REPLY_ERROR','communicator',type(exc).__name__,severity='WARN')
+                proposal['revision'] = tasks.get(proposal['task_id'],{}).get('feedback_revision')
+                with self.db._connect() as c:
+                    cur=c.execute('UPDATE intake_messages SET intent_json=? WHERE event_key=? AND intake_owner=?',
+                                  (json.dumps(proposal),event_key,owner))
+                    if not cur.rowcount:
+                        return dict(c.execute('SELECT * FROM intake_messages WHERE event_key=?',(event_key,)).fetchone())
+            proposed_target=proposal['task_id']
+            with self.db._connect() as c:
+                recorded_feedback=c.execute('SELECT 1 FROM task_feedback WHERE event_key=? AND task_id=? AND actor=?',
+                                            (event_key,proposed_target,actor)).fetchone()
+            references={int(x) for x in re.findall(r'(?:#|\btask\s+)(\d+)\b',text,re.I)}
+            allowed_target = (proposed_target in tasks and
+                              (references == {proposed_target} or (not references and
+                               ((linked and linked['task_id']==proposed_target) or len(tasks)==1))))
+            if proposal['intent'] in {'feedback','status','evidence'} and proposed_target is not None and not allowed_target:
+                proposal={**fallback,'reply':'Please identify one of your tasks in this channel with its task number.'}
+            if proposal['intent']=='feedback' and (not allowed_target or
+                    (not recorded_feedback and proposal['revision'] != tasks[proposed_target]['feedback_revision'])):
+                proposal={**fallback,'reply':'Please identify the current task and the change you want.'}
+            if proposal['intent']=='task' and re.fullmatch(r'(?:retry|reopen)\s+(?:task\s*)?#?\d+\.?',text,re.I):
+                proposal={**fallback,'reply':'Use !retry <id> for an explicit new run of your existing task.'}
+            intent=proposal['intent']
+            target=proposal['task_id']
+            # Preserve authenticated original wording, never model-authored instructions.
+            body=text
+            if intent in {'chat','clarify'}:
+                response=proposal['reply'] or fallback['reply']
+                # Action receipts belong to the controller, including in ordinary chat.
+                receipt_text=re.sub(r'(?i)no new task was started|no task was created or changed','',response)
+                if re.search(r'(?i)\b(queued|submitted|scheduled|created|executed|approved|started)\b|'
+                             r'đã\s+(?:gửi|tạo|chạy|xếp|phê duyệt)',receipt_text):
+                    response='No task was created or changed by this message. Please use a clear task request, !feedback <id> <change>, or !status.'
+                intent='resolved_chat'
+        with self.db._connect() as c:
+            current=c.execute('SELECT * FROM intake_messages WHERE event_key=?',(event_key,)).fetchone()
+            if current['intake_owner'] != owner:
+                return dict(current)
         if intent in {'approve','deny','approvals'}:
             from core.control import ControlPlane
             control=ControlPlane(self.db)
@@ -85,7 +160,8 @@ class Conversation:
                 task_id = target
             else:
                 change = match[2] if match else body
-                response = self._feedback(target, actor, change, event_key)
+                response = self._feedback(target, actor, change, event_key,
+                                          proposal['revision'] if proposed else None)
                 task_id = target
         elif intent == 'task':
             if not body.strip():
@@ -96,34 +172,49 @@ class Conversation:
                 similar=[r['id'] for r in tasks.values() if r['user_prompt'].strip().casefold()==body.strip().casefold()]
                 if similar:
                     response+=f' Matching prior request: #{similar[0]}; this explicit new request is preserved.'
-        elif intent in {'status', 'search'}:
-            found = [r for r in tasks.values() if (not body or body.lower() in (str(r['id'])+' '+r['title']+' '+r['user_prompt']).lower())]
-            response = '\n'.join(f"#{r['id']} {r['status']}: {r['title']}" for r in found[:10]) or 'No matching tasks in your conversation.'
-        else:
+        elif intent in {'status', 'search', 'evidence'}:
+            from core.monitoring import status_line
+            from core.conversation_intents import public_text, task_facts
+            found = ([tasks[target]] if target in tasks else list(tasks.values())) if not command else [r for r in tasks.values() if (not body or body.lower() in (str(r['id'])+' '+r['title']+' '+r['user_prompt']).lower())]
+            if intent=='evidence':
+                from core.conversation_intents import log_excerpt
+                if target not in tasks:
+                    response='Please identify one task number for a bounded log excerpt.'
+                else:
+                    evidence={'id':target,'status':public_text(tasks[target]['status'],60),
+                              'feedback_revision':tasks[target]['feedback_revision'],
+                              'log':log_excerpt(tasks[target],self.workspace_root,self.logs_dir)}
+                    response=json.dumps(evidence,ensure_ascii=False)
+                    while len(response)>1800 and evidence['log'].get('text'):
+                        evidence['log']['text']=evidence['log']['text'][max(1,len(response)-1800):]
+                        evidence['log']['truncated']=True
+                        response=json.dumps(evidence,ensure_ascii=False)
+            else:
+                response = '\n'.join(f"#{r['id']} {r['status']}: {public_text(r['title'],160)}"+public_text(status_line(self.db,r['id']),400) for r in found[:10])[:1800] or 'No matching tasks in your conversation.'
+            task_id=target if target in tasks else None
+        elif intent != 'resolved_chat':
             response = ('I can follow your task history and record changes. Use !task <instructions> for new work, '
                         '!status, !search <words>, or reply to a task message with feedback. '
                         'This message was saved; no new task was started.')
-            if self.reply:
-                with self.db._connect() as c:
-                    history=[dict(r) for r in c.execute('SELECT message,response FROM intake_messages WHERE scope=? AND actor=? AND event_key!=? ORDER BY rowid DESC LIMIT 8',(scope,actor,event_key))]
-                try:
-                    response=self.reply(scope,actor,text,list(reversed(history)),list(tasks.values())[:10]) or response
-                except Exception as exc:
-                    self.db.log_event('CONVERSATION_REPLY_ERROR','communicator',type(exc).__name__,severity='WARN')
         with self.db._connect() as c:
             if task_id:
                 c.execute('INSERT OR IGNORE INTO task_actors VALUES(?,?,?)', (task_id, actor, scope))
-            c.execute('UPDATE intake_messages SET response=?,task_id=? WHERE event_key=?', (response, task_id, event_key))
+            c.execute('UPDATE intake_messages SET response=?,task_id=? WHERE event_key=? AND intake_owner=?', (response, task_id, event_key,owner))
             return dict(c.execute('SELECT * FROM intake_messages WHERE event_key=?', (event_key,)).fetchone())
 
-    def _feedback(self, task_id, actor, message, key):
+    def _feedback(self, task_id, actor, message, key, expected_revision=None):
         if not message.strip():
             return 'Feedback cannot be empty.'
         with self.db._connect() as c:
             c.execute('BEGIN IMMEDIATE')
-            task = c.execute('SELECT status FROM tasks WHERE id=?', (task_id,)).fetchone()
+            recorded=c.execute('SELECT * FROM task_feedback WHERE event_key=?',(key,)).fetchone()
+            if recorded:
+                return f'Feedback already recorded for #{task_id}; applied at a role boundary.' if recorded['applied'] else f'Feedback saved for #{task_id}; it will be reviewed at the next role boundary. Running commands and remote machines are not interrupted.'
+            task = c.execute('SELECT status,feedback_revision FROM tasks WHERE id=?', (task_id,)).fetchone()
             if task['status'] in TERMINAL:
                 return f'Task #{task_id} is finished. Use !retry {task_id} for a new run.'
+            if expected_revision is not None and task['feedback_revision'] != expected_revision:
+                return f'Task #{task_id} changed revision. Please restate your feedback for the current task.'
             c.execute('INSERT OR IGNORE INTO task_feedback(task_id,actor,message,event_key) VALUES(?,?,?,?)', (task_id, actor, message, key))
         return f'Feedback saved for #{task_id}; it will be reviewed at the next role boundary. Running commands and remote machines are not interrupted.'
 

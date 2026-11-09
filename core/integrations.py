@@ -22,8 +22,15 @@ def toml_value(value):
 
 
 def hook_command(controller, workspace, provider, event):
-    return subprocess.list2cmdline([sys.executable, str(Path(controller) / "scripts/agent_hooks.py"),
-        "--provider", provider, "--event", event, "--workspace", str(workspace)])
+    argv = [sys.executable, str(Path(controller) / "scripts/agent_hooks.py"),
+            "--provider", provider, "--event", event, "--workspace", str(workspace)]
+    if provider == "claude":
+        # Claude Code runs hook commands through a POSIX shell (Git Bash on Windows),
+        # which strips backslashes from cmd-style paths: the hook then exits 127 and
+        # no receipt is written. Forward slashes are valid for Windows Python too.
+        import shlex
+        return shlex.join(part.replace("\\", "/") for part in argv)
+    return subprocess.list2cmdline(argv)
 
 
 def prepare_integrations(controller, staging, target):
@@ -102,6 +109,29 @@ def prepare_integrations(controller, staging, target):
         'Never deserialize untrusted pickle/checkpoint content. If no durable destination '
         'is configured, report that limitation before a long run.\n',encoding='utf8')
     skills.append('workflow-checkpoints')
+    progress = skill_root/'workflow-progress'
+    progress.mkdir(exist_ok=True)
+    shutil.copy2(Path(__file__).with_name('experiment_progress.py'),progress/'experiment_progress.py')
+    (progress/'SKILL.md').write_text(
+        '---\nname: workflow-progress\ndescription: Durable job progress and optional W&B tracking.\n---\n\n'
+        'Register experiment_job_register BEFORE a long launch; use a stable request_key. '
+        'Keep the returned job id across sessions. Instrument the remote script with '
+        'ExperimentProgress from experiment_progress.py; copy this helper to the VM. '
+        'Use a cumulative completed counter and fixed total for the original cohort; never shrink it. '
+        'In each batch call update(completed, stage="detect", metrics={"loss": value}); '
+        'finish only after outputs are consistently saved. Save real computation checkpoints separately. '
+        'Use mode="online" with W&B credentials from the platform secret store; Windows login '
+        'does not authenticate Colab/Kaggle. Never copy keys into prompts, source or output files. '
+        'Without VM credentials use offline mode and retain local progress markers. '
+        'For Colab, prepare one cell, register its external_id (cell ID), then call colab_job_start '
+        'once; return to the controller immediately. Repeated start calls never rerun the cell. '
+        'For existing Kaggle/local jobs register the external ID and do not submit twice. '
+        'After compute completes download explicit outputs, call experiment_job_artifacts, '
+        'then let the unchanged acceptance checks and validator decide success. '
+        'If .workflow/checkin-request.json exists, report observed process/job progress; '
+        'heartbeat and noisy logs alone do not prove work. Do not cancel or resubmit uncertain jobs.\n',
+        encoding='utf-8')
+    skills.append('workflow-progress')
 
     def native_hooks(provider):
         return {"hooks": {event: [{"hooks": [{"type": "command",

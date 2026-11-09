@@ -26,14 +26,32 @@ overrides; it is unnecessary for mixed configurations.
 |---|---|---|---|
 | Antigravity CLI | Native | Native hooks required | Earlier real local/cloud proof; regressions |
 | Codex CLI | Native | Native hooks + emitted thread ID | Current real four-role local proof |
-| Claude Code CLI | Native | Native hooks required | Adapter checks; not installed here |
+| Claude Code CLI | Native | Native hooks required | Real four-role local proof 2026-11-04 (claude 2.1.318, `verify --provider claude_cli`, 43 hook events); first attempt failed on backslash hook paths under Git Bash, fixed in `hook_command` |
 | OpenCode CLI | Native | Named JSON session; controller observation | JSON/permission contract tests; not installed here |
 | OpenRouter / compatible API | Controller tool loop | Request/tool trace | Mocked tool execution checks |
 | Text-only Gemini HTTP | Communication/watchers | Controller result | Rejected for execution roles |
 
-No silent provider/model fallback occurs. Login/quota errors, incomplete output
-and missing required native hooks are failures. OpenCode has no claim of native
+No silent provider/model fallback occurs by default. Login/quota errors, incomplete
+output and missing required native hooks are failures. The one exception is the
+opt-in [quota router](QUOTA_ROUTING.md) (`quota_routing.enabled`, off in the example
+config): it may move a role to an equivalent model with quota, but only through an
+explicit logged `QUOTA_ROUTE` event, never away from a task's explicit `--provider`
+choice, and it waits (`WAITING_PROVIDER`) rather than spending a provider's reserved
+last 10% or switching silently. OpenCode has no claim of native
 workflow hooks; its saved controller evidence is labeled accordingly.
+
+## Turn budgets (soft)
+
+`role_turn_budget` (legacy key `role_max_turns`; defaults communicator 5, validator 15,
+researcher 25, operator 35) is guidance, not a hard stop. Every role prompt carries the
+budget and asks the agent to wrap up and write a checkpoint/handoff once it passes it.
+Claude runs get no `--max-turns` flag. When a run uses more turns than its budget, its
+evidence gets `turn_budget_exceeded` and the controller logs a `TURN_BUDGET_EXCEEDED`
+warning. API tool loops get a single wrap-up message at the budget. The hard limits are
+unchanged: role `timeout_seconds`, supervision `max_agent_seconds`, and the API
+`max_tool_rounds`/`max_total_tokens`. A hard cap is still possible through a provider's
+`extra_args` (e.g. `["--max-turns", "60"]` for Claude); its `error_max_turns` result
+is reported as a budget stop, not a crash.
 
 ## Model and reasoning selection
 

@@ -31,7 +31,8 @@ def task_summary(task):
 def task_list(db, limit=200):
     with db._connect() as connection:
         counts = {row[0]: row[1] for row in connection.execute("SELECT status,COUNT(*) FROM tasks GROUP BY status")}
-    return {"tasks": [task_summary(t) for t in db.get_all_tasks(limit)], "counts": counts,
+    from core.monitoring import task_jobs
+    return {"tasks": [{**task_summary(t),'experiment_jobs':task_jobs(db,t.id)} for t in db.get_all_tasks(limit)], "counts": counts,
             "observed_at_unix": time.time()}
 
 
@@ -44,6 +45,7 @@ def task_detail(db, task_id):
         wait=connection.execute('SELECT * FROM task_waits WHERE task_id=?',(task_id,)).fetchone()
         approvals=[dict(r) for r in connection.execute('SELECT id,actor,action,action_hash,expires,decision FROM approvals WHERE task_id=? ORDER BY created',(task_id,))] if 'approvals' in tables else []
         feedback=[dict(r) for r in connection.execute('SELECT id,actor,message,applied FROM task_feedback WHERE task_id=? ORDER BY id',(task_id,))] if 'task_feedback' in tables else []
+        diagnoses=[dict(r) for r in connection.execute('SELECT run_id,claimed_at,finished_at,verdict FROM agent_reviews WHERE task_id=? ORDER BY run_id',(task_id,))] if 'agent_reviews' in tables else []
         runs = [dict(row) for row in connection.execute(
             "SELECT id,role,provider_name,status,spawned_at,shutdown_at,duration_seconds,exit_code,"
             "step_index,attempt,run_label,session_id,error_text FROM agent_runs WHERE task_id=? ORDER BY id", (task_id,))]
@@ -56,7 +58,10 @@ def task_detail(db, task_id):
         if event["event_type"] == "ACCEPTANCE_CHECKS":
             payload = json.loads(event["payload_json"])
             checks.append({"timestamp": event["timestamp"], **payload})
-    return {**task_summary(task), "request": task.user_prompt, "research": task.research_notes,
+    routes = [{"timestamp": e["timestamp"], "event": e["event_type"], **json.loads(e["payload_json"])}
+              for e in events if e["event_type"] in {"QUOTA_ROUTE", "QUOTA_EXHAUSTED"}]
+    from core.monitoring import task_jobs
+    return {**task_summary(task), 'quota_routes': routes, 'experiment_jobs':task_jobs(db,task_id), 'agent_diagnoses':diagnoses, "request": task.user_prompt, "research": task.research_notes,
             "plan": json.loads(task.plan_json), "validation": task.validation_feedback,
             "result": task.final_response, "runs": runs, "checks": checks,
             "wait":dict(wait) if wait else None,"approvals":approvals,"user_feedback":feedback,
