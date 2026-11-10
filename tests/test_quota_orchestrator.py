@@ -85,7 +85,10 @@ class QuotaOrchestratorTests(unittest.TestCase):
         self.assertEqual((payload['action'], payload['source']), ('wait', 'pinned'))
 
     def test_limit_error_waits_without_burning_retry_then_reroutes_after_reset(self):
-        # The planner's ordered D3 chain starts with Codex.
+        # The planner's ordered D3 chain starts with Codex; the rest of the chain is also out, so
+        # the controller must wait for the reset instead of failing over (failover: test_p2_provider_failover).
+        for account in ('claude', 'agy:gemini-4-argon'):
+            self.snapshot(account, 100.0, resets_in=600, window='limit')
         runner = RecordingRunner(failures={'planner': {'quota': {'exhausted': True, 'matched': 'hit your limit', 'resets_at': time.time() + 600,
                                                                      'account': 'codex', 'provider': 'codex_cli', 'model': 'gpt-6-astra'}}})
         orch = self.orchestrator(runner)

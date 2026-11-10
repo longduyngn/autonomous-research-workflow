@@ -232,6 +232,26 @@ class HybridOrchestrator:
             record_route(self.db, self.config, role, decision, task.id, self._route_seen)
         return decision
 
+    def _write_failover_handoff(self, task, role, provider_name, exhausted, result):
+        """Controller-owned handoff so the next provider can continue this role safely (P2.4-02)."""
+        if not task.workspace_path:
+            return None
+        from core.role_memory import atomic_json
+        data = result.structured_data or {}
+        handoff = {
+            'task_id': task.id, 'role': role, 'step_index': task.step_index, 'plan_revision': task.plan_revision,
+            'feedback_revision': task.feedback_revision, 'failed_provider': provider_name,
+            'account': exhausted.get('account'), 'resets_at': exhausted.get('resets_at'),
+            'reason': exhausted.get('matched'), 'run_id': data.get('run_id'),
+            'tools_observed': data.get('native_tools') or [t.get('name') for t in data.get('tool_trace', []) if isinstance(t, dict)],
+            'provider_handoff': data.get('handoff'), 'active_job_id': task.remote_job_id or None,
+            'output_tail': (result.output or '')[-2000:],
+            'next_safe_action': 'Reconcile files and registered jobs, then continue the same step; never repeat completed effects.',
+        }
+        path = Path(task.workspace_path) / '.workflow' / 'failover' / f'{role}.json'
+        atomic_json(path, handoff)
+        return path
+
     def _quota_wait(self, task, status, decision):
         """Durable PROVIDER wait until the earliest quota reset; consumes no retry."""
         delay = max(15.0, (decision.until or time.time() + 900) - time.time())
@@ -961,6 +981,11 @@ class HybridOrchestrator:
                 timeline["previous_run"] = self.db.task_timeline(task.parent_task_id)
             (Path(task.workspace_path) / ".workflow/timeline.json").write_text(json.dumps(timeline, indent=2), encoding="utf-8")
             prompt += "\nController-recorded timestamps are in .workflow/timeline.json. Do not invent future role timestamps.\n"
+            failover = Path(task.workspace_path) / '.workflow' / 'failover' / f'{role}.json'
+            if failover.exists():
+                prompt += ("\nA previous attempt of this role stopped at a provider quota limit; its controller handoff is "
+                           f"{failover}. Reconcile the workspace (files, registered jobs) against it before continuing; "
+                           "do not repeat effects that already happened.\n")
         active_runner = getattr(self._worker_local, "runner", None) or self.runner
         if recovery_packet is not None:
             from core.role_memory import atomic_json
@@ -1080,6 +1105,15 @@ class HybridOrchestrator:
             self.db.log_event('QUOTA_EXHAUSTED', 'quota', f"{role} on {exhausted['account'] or provider_name}: {exhausted['matched']}; waiting for reset",
                               task_id=task.id, severity='WARN', payload={**exhausted, 'role': role, 'provider': provider_name})
             self.control.cool_down('quota:' + exhausted['account'], delay, 'Provider quota exhausted')
+            self._write_failover_handoff(task, role, provider_name, exhausted, result)
+            alternative = self._route(task, role) if self.quota else None
+            if alternative is not None and alternative.action == 'run' and alternative.account != exhausted['account']:
+                # Ralph boundary failover: another route has quota, so do not wait for this reset.
+                self.db.log_event('QUOTA_FAILOVER', 'quota', f"{role}: {provider_name} -> {alternative.provider}/{alternative.model or 'default'}",
+                                  task_id=task.id, payload={'from_account': exhausted['account'], **alternative.to_dict()})
+                self.control.wait(task.id, 'PROVIDER', task.status, 'Quota failover to another provider at the next boundary', '',
+                                  15, timeout=86400)
+                raise TaskDeferred()
             self.control.wait(task.id, 'PROVIDER', task.status, 'Provider quota exhausted; no retry consumed', 'quota:' + exhausted['account'],
                               delay, timeout=max(86400, delay + 3600))
             raise TaskDeferred()
@@ -1089,6 +1123,11 @@ class HybridOrchestrator:
             self.control.cool_down(provider_name,delay,'Rate limited before tools')
             self.control.wait(task.id,'PROVIDER',task.status,'Provider rate limited before tools',provider_name,delay)
             raise TaskDeferred()
+        if result.success and task.workspace_path:
+            failover = Path(task.workspace_path) / '.workflow' / 'failover' / f'{role}.json'
+            if failover.exists():
+                # The continuation succeeded: archive the handoff so later runs are not told to reconcile again.
+                failover.replace(failover.with_name(f'{role}.{run_id}.consumed.json'))
         if result.structured_data.get('budget_exhausted'):
             from core.approvals import TaskDeferred
             self.db.log_event('AGENT_TURN_BUDGET', 'orchestrator',
