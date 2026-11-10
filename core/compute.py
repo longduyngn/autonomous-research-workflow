@@ -1,4 +1,8 @@
-"""Future rented/SSH compute boundary. No vendor SDK, network calls or purchases."""
+"""Future rented/SSH compute boundary (provisioning). No vendor SDK, network calls or purchases.
+
+Notebook/batch job lifecycles (Colab, Kaggle) live in ``core.compute_jobs``; this module only
+describes renting a machine and stays disabled until an adapter is installed and enabled.
+"""
 from dataclasses import dataclass
 import math
 from typing import Protocol
@@ -21,7 +25,7 @@ class ComputeRequest:
             raise ValueError('Finite duration and nonnegative total cost cap are required')
 
 
-class ComputeAdapter(Protocol):
+class ProvisioningAdapter(Protocol):
     """Unknown API state is UNKNOWN, never STOPPED. Provision reconciles its durable
     request key before retry. Stop must verify release, not transport disconnect.
     Credentials remain on the host. Controller approval precedes any paid effect.
@@ -30,6 +34,9 @@ class ComputeAdapter(Protocol):
     def observe(self, remote_identity: dict) -> dict: ...
     def stop(self, remote_identity: dict) -> dict: ...
     def download(self, remote_identity: dict, files: list[str], destination: str) -> dict: ...
+
+
+ComputeAdapter = ProvisioningAdapter  # legacy name
 
 
 class ComputeRegistry:

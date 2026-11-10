@@ -25,8 +25,8 @@
 - Done also: P2.4-01 (standard result contract), P2.4-02 (boundary failover + handoff), P2.4-03 (independent validator).
 - Done also: P2.4-04 (CLI pins + throttled smoke). P2.4 complete.
 - Done also: P2.6-02 (no default time budgets).
-- Next: P2.5-01 job adapter contract (`core/compute_jobs.py`: submit/status/logs_tail/fetch_outputs/cancel; JobSpec/JobHandle;
-  keep VM `ComputeAdapter` as ProvisioningAdapter, disabled), then P2.5-02 manifest, P2.5-03 Drive/rclone (live gate:
+- Done also: P2.5-01 (job contract + journal).
+- Next: P2.5-02 manifest, P2.5-03 Drive/rclone (live gate:
   user must install rclone + `rclone config` remote `gdrive`), P2.5-04 Colab, P2.5-05 Kaggle, P2.5-06 poller,
   P2.5-07 light outputs, P2.5-08 cross-backend resume, P2.5-09 HF optional.
 - The scheduled autopilot task is NOT installed (blocked by the session permission classifier); the user
