@@ -74,6 +74,19 @@ def validate_config(config):
         if int(settings.get("timeout_seconds", 600)) < 1:
             raise ValueError(f"Role timeout must be positive: {role}")
         provider = providers[settings["provider"]]
+        if type(settings.get("pinned", False)) is not bool:
+            raise ValueError(f"roles.{role}.pinned must be boolean")
+        fallbacks = settings.get("fallbacks", [])
+        if fallbacks and not settings.get("pinned"):
+            raise ValueError(f"roles.{role}.fallbacks require pinned=true")
+        if not isinstance(fallbacks, list):
+            raise ValueError(f"roles.{role}.fallbacks must be a list")
+        for item in fallbacks:
+            if not isinstance(item, dict) or item.get("provider") not in providers or not isinstance(item.get("model", ""), str):
+                raise ValueError(f"roles.{role}.fallbacks entries need a configured provider and a string model")
+            if providers[item["provider"]].get("type") != provider.get("type"):
+                # D1: a pinned role stays inside its provider type (AGY), never another CLI/API.
+                raise ValueError(f"roles.{role}.fallbacks must use the same provider type as the pinned provider")
         if role in ACTION_ROLES:
             if provider.get("type") == "gemini_http":
                 raise ValueError(f"{role} requires a tool-capable provider")

@@ -145,6 +145,24 @@ def parse_opencode_stream(lines):
     return summary
 
 
+_PINNED_FALLBACK_MARKERS = ('quota', 'usage limit', 'rate limit', 'rate-limit', 'capacity', 'overloaded',
+                            'model not found', 'model is not available', 'unavailable model', 'unknown model',
+                            'timed out', 'timeout', 'no output', 'resource exhausted', '429', '503')
+_PINNED_STOP_MARKERS = ('authentication required', 'authentication failed', 'not installed', 'denied an action',
+                        'permission', 'unauthorized', 'login')
+
+
+def _pinned_should_fall_back(result):
+    """Next pinned model only for capacity/model problems, never for auth or permission failures."""
+    data = result.structured_data or {}
+    if data.get('quota'):
+        return True
+    text = (result.error or '').lower()
+    if any(marker in text for marker in _PINNED_STOP_MARKERS):
+        return False
+    return any(marker in text for marker in _PINNED_FALLBACK_MARKERS)
+
+
 class EphemeralAgentRunner:
     def _free_selector(self):
         from core.openrouter_free import FreeModelSelector
@@ -192,7 +210,43 @@ class EphemeralAgentRunner:
             return os.environ.get(entry.get("env", ""), "") or entry.get("default", "")
         return entry
 
+    def pinned_chain(self, role):
+        """[(provider, model), ...] for a role pinned to one provider type (D1), else None."""
+        cfg = self.roles_cfg.get(role, {})
+        if not cfg.get('pinned'):
+            return None
+        return [(cfg.get('provider', ''), cfg.get('model', ''))] + [
+            (item.get('provider', ''), item.get('model', '')) for item in cfg.get('fallbacks', [])]
+
     def run_role(self, role, task_prompt, cli_log_path=None, provider_override=None, model_override=None):
+        chain = self.pinned_chain(role)
+        if not chain:
+            return self._run_role_with_memory(role, task_prompt, cli_log_path, provider_override, model_override)
+        # Pinned role: task/global provider overrides never move it; a router choice is honoured
+        # only as a starting point inside the chain.
+        start = next((i for i, (p, m) in enumerate(chain)
+                      if p == provider_override and model_override and m == model_override), 0)
+        attempts = []
+        result = None
+        for index, (provider, model) in enumerate(chain[start:], start):
+            result = self._run_role_with_memory(role, task_prompt, cli_log_path, provider, model)
+            data = result.structured_data
+            attempts.append({'provider': provider, 'model': model, 'success': result.success,
+                             'error': (result.error or '')[:200]})
+            if result.success:
+                break
+            if not _pinned_should_fall_back(result):
+                break  # auth/permission/CLI problems are not solved by another model
+        data = result.structured_data
+        data['pinned_route'] = {'attempts': attempts, 'chain': [list(item) for item in chain]}
+        if not result.success and len(attempts) and _pinned_should_fall_back(result):
+            # Whole pinned chain exhausted: callers use a no-LLM template; do not park the task
+            # in a provider wait for a reporting/watching role.
+            data['pinned_exhausted'] = True
+            data['pinned_quota'] = data.pop('quota', None)
+        return result
+
+    def _run_role_with_memory(self, role, task_prompt, cli_log_path=None, provider_override=None, model_override=None):
         from core.role_memory import RoleMemory
         import hashlib
         memory = RoleMemory(self.workspace_root, role)

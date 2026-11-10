@@ -90,8 +90,13 @@ class Conversation:
                     candidate=self.reply(scope,actor,public_text(text,6000),list(reversed(history)),task_facts(self.db,list(tasks.values())))
                     # Old reply callbacks may return ordinary conversational text. They never mutate.
                     if candidate is None:
+                        # No model reply (pinned AGY chain unavailable): answer from controller facts only.
+                        facts=[f"#{t['id']} {t['status']}"+(f" ({t['current_role']})" if t.get('current_role') else '')
+                               for t in list(tasks.values())[:3]]
                         proposal={**fallback,'intent':'chat','reply':
-                            'This message was saved; no new task was started. Use !task <instructions>, !feedback <id> <change>, or !status.'}
+                            'This message was saved; no new task was started.'
+                            +(' Your recent tasks: '+'; '.join(facts)+'.' if facts else '')
+                            +' Use !task <instructions>, !feedback <id> <change>, or !status.'}
                     elif isinstance(candidate,str) and not candidate.lstrip().startswith(('{','[')):
                         proposal={**fallback,'intent':'chat','reply':candidate[:1800]} if candidate else fallback
                     else:

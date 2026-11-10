@@ -57,7 +57,7 @@ class QuotaOrchestratorTests(unittest.TestCase):
         routed = {role: (provider, model) for role, provider, model in runner.calls}
         self.assertEqual(routed['planner'], ('codex_cli', 'gpt-6-astra'))
         self.assertEqual(routed['operator'], ('codex_cli', 'gpt-6.1-sol'))
-        self.assertEqual(routed['communicator'], ('agy_headless_safe', 'gemini-3.8-flash-medium'))
+        self.assertEqual(routed['communicator'], ('agy_headless_safe', 'gemini-3.8-flash-low'))  # D1 pinned
         events = self.events('QUOTA_ROUTE')
         self.assertTrue(events)
         payload = next(p for p in (json.loads(e['payload_json']) for e in events) if p['role'] == 'planner')
@@ -174,10 +174,10 @@ class LightRoleTests(unittest.TestCase):
                                          quota_router=build_router(self.config, self.db))
         watcher.check_once()
         watcher.check_once()  # inside the 30-minute LLM cadence
-        self.assertEqual(runner.calls, [('workspace_watcher', 'agy_headless_safe', 'gemini-3.8-flash-medium')])
+        self.assertEqual(runner.calls, [('workspace_watcher', 'agy_headless_safe', 'gemini-3.8-flash-low')])
         self.assertEqual(QuotaStore(self.db).ledger()[0]['role'], 'workspace_watcher')
         # Light and uncapped accounts both exhausted: skip the review without consuming the cadence.
-        for account in ('agy:gemini-3.8-flash', 'agy:gemini-4-argon'):
+        for account in ('agy:gemini-3.8-flash', 'agy:claude', 'agy:gpt-oss', 'agy:gemini-4-argon'):  # whole D1 chain out
             QuotaStore(self.db).put([Snapshot(account, 'limit', 100.0, time.time() + 600, 'fixture', time.time(), 'inferred')])
         watcher._last_anomaly_at = 0.0
         watcher.check_once()
@@ -190,7 +190,7 @@ class LightRoleTests(unittest.TestCase):
         from watchers.world_watcher import WorldWatcherDaemon
         from core.quota import build_router
         runner = RecordingRunner()
-        for account in ('agy:gemini-3.8-flash', 'agy:gemini-4-argon'):
+        for account in ('agy:gemini-3.8-flash', 'agy:claude', 'agy:gpt-oss', 'agy:gemini-4-argon'):  # whole D1 chain out
             QuotaStore(self.db).put([Snapshot(account, 'limit', 100.0, time.time() + 600, 'fixture', time.time(), 'inferred')])
         watcher = WorldWatcherDaemon(self.root, self.config, self.db, ContextLogManager(self.root / 'logs'), runner,
                                      quota_router=build_router(self.config, self.db))

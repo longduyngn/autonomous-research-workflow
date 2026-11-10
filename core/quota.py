@@ -680,6 +680,7 @@ class QuotaRouter:
     def __init__(self, config, store, clock=time.time, cooldown_until=None):
         self.cfg = {**DEFAULTS, **config.get('quota_routing', {})}
         self.providers, self.store, self.clock = config.get('providers', {}), store, clock
+        self.roles = config.get('roles', {})
         self.cooldown_until = cooldown_until or (lambda key: 0)
 
     @property
@@ -700,6 +701,32 @@ class QuotaRouter:
             if cooling and cooling > now:
                 info = {**info, 'state': 'exhausted', 'until': max(info['until'] or 0, cooling)}
         return info
+
+    def _pinned(self, role, now, groups):
+        cfg = self.roles.get(role, {})
+        if not cfg.get('pinned'):
+            return None
+        chain = [{'provider': cfg.get('provider', ''), 'model': cfg.get('model', '')}] + list(cfg.get('fallbacks', []))
+        considered = []
+        for raw in chain:
+            entry = self._entry(raw)
+            info = self._state(entry, now, groups)
+            considered.append({**entry, 'state': info['state'], 'remaining': info['remaining'], 'until': info['until']})
+            if info['state'] in ('ok', 'reserved'):
+                return RouteDecision('run', entry['provider'], entry['model'], entry['account'], 'role_pinned',
+                                     f'Role {role} is pinned to its own chain', quota_class='role_pinned',
+                                     considered=considered)
+        first = self._entry(chain[0])
+        if role != 'communicator':
+            # Watchers keep their events for a later tick instead of reporting a failed analysis.
+            known = [c['until'] for c in considered if c.get('until')]
+            return RouteDecision('wait', '', '', first['account'], 'role_pinned',
+                                 f'Every pinned entry for {role} is exhausted; event kept for a later tick',
+                                 quota_class='role_pinned', until=min(known) if known else now + float(self.cfg['default_cooldown_seconds']),
+                                 considered=considered)
+        return RouteDecision('run', first['provider'], first['model'], first['account'], 'role_pinned',
+                             f'Every pinned entry for {role} looks exhausted; the runner tries the chain and then '
+                             'falls back to a no-LLM template', quota_class='role_pinned', considered=considered)
 
     def _class_for(self, role, task):
         name = self.cfg.get('role_classes', {}).get(role)
@@ -728,6 +755,9 @@ class QuotaRouter:
         groups = {}
         for snap in self.store.snapshots():
             groups.setdefault(snap.account, []).append(snap)
+        pinned = self._pinned(role, now, groups)
+        if pinned is not None:
+            return pinned  # D1: before task/global overrides and classes; never a wait
         override = getattr(task, 'provider_override', '') or ''
         if override:
             provider = self.providers.get(override, {})

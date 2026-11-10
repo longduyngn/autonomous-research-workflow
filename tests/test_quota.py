@@ -318,8 +318,10 @@ class RouterTests(unittest.TestCase):
         self.assertEqual(self.router().select('operator').action, 'wait')
 
     def test_light_roles_use_flash_and_simple_validator_follows_flag(self):
-        for role in ('communicator', 'remote_manager', 'workspace_watcher'):
-            self.assertEqual(self.router().select(role).model, 'gemini-3.8-flash-medium', role)
+        self.assertEqual(self.router().select('remote_manager').model, 'gemini-3.8-flash-medium')
+        for role in ('communicator', 'workspace_watcher'):  # D1: pinned to Flash low inside AGY
+            decision = self.router().select(role)
+            self.assertEqual((decision.model, decision.source), ('gemini-3.8-flash-low', 'role_pinned'), role)
         self.assertEqual(self.router().select('validator').model, 'sonnet')
         simple = SimpleNamespace(plan_json=json.dumps({'mode': 'direct', 'simple': True}), provider_override='')
         self.assertEqual(self.router().select('validator', simple).model, 'gemini-3.8-flash-medium')
@@ -327,7 +329,9 @@ class RouterTests(unittest.TestCase):
         self.config['quota_routing']['light_validator'] = True
         self.assertEqual(self.router().select('validator').quota_class, 'light')
         self.limit('agy:gemini-3.8-flash', 1800)
-        self.assertEqual(self.router().select('communicator').model, 'gemini-4-argon-low')
+        self.assertEqual(self.router().select('validator').model, 'gemini-4-argon-low')  # light class reserve
+        # D1: the pinned communicator falls back inside AGY to Claude Sonnet low, not to the light reserve.
+        self.assertEqual(self.router().select('communicator').model, 'claude-sonnet-5-5-low')
 
     def test_explicit_provider_is_never_rerouted(self):
         task = SimpleNamespace(provider_override='claude_cli', plan_json='{}')
@@ -364,8 +368,8 @@ class RouterTests(unittest.TestCase):
         self.assertEqual(self.router().select('operator').provider, 'claude_cli')  # reset 60s ago: usable and freshest
 
     def test_unrouted_role_and_disabled_router(self):
-        self.config['quota_routing']['role_classes'].pop('world_watcher')
-        self.assertIsNone(self.router().select('world_watcher'))
+        self.config['quota_routing']['role_classes'].pop('remote_manager')
+        self.assertIsNone(self.router().select('remote_manager'))
         self.assertIsNone(self.router().select('unknown'))
         self.assertFalse(QuotaRouter({}, self.store).enabled)
 

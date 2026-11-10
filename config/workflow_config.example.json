@@ -228,12 +228,23 @@
     },
     "communicator": {
       "provider": "agy_headless_safe",
-      "model": "gemini-3.8-flash-medium",
+      "model": "gemini-3.8-flash-low",
       "effort": "low",
       "prompt_file": "roles/communicator.md",
       "timeout_seconds": 120,
       "description": "Synthesizes task context and results into a clean user-facing message for Discord/Zalo/Messenger.",
-      "tier": "fast"
+      "tier": "fast",
+      "pinned": true,
+      "fallbacks": [
+        {
+          "provider": "agy_headless_safe",
+          "model": "claude-sonnet-5-5-low"
+        },
+        {
+          "provider": "agy_headless_safe",
+          "model": "gpt-oss-120b-medium"
+        }
+      ]
     },
     "workspace_watcher": {
       "provider": "agy_headless_safe",
@@ -242,7 +253,18 @@
       "prompt_file": "roles/workspace_watcher.md",
       "timeout_seconds": 180,
       "description": "Analyzes workspace anomalies, stuck tasks, or unexpected file changes when triggered by the internal daemon.",
-      "tier": "fast"
+      "tier": "fast",
+      "pinned": true,
+      "fallbacks": [
+        {
+          "provider": "agy_headless_safe",
+          "model": "claude-sonnet-5-5-low"
+        },
+        {
+          "provider": "agy_headless_safe",
+          "model": "gpt-oss-120b-medium"
+        }
+      ]
     },
     "remote_manager": {
       "provider": "agy_headless_safe",
@@ -260,7 +282,18 @@
       "prompt_file": "roles/world_watcher.md",
       "timeout_seconds": 180,
       "description": "Evaluates new outside-world events (RSS/APIs/webhooks) and decides whether to spawn a workspace task or alert the user.",
-      "tier": "fast"
+      "tier": "fast",
+      "pinned": true,
+      "fallbacks": [
+        {
+          "provider": "agy_headless_safe",
+          "model": "claude-sonnet-5-5-low"
+        },
+        {
+          "provider": "agy_headless_safe",
+          "model": "gpt-oss-120b-medium"
+        }
+      ]
     }
   },
   "watchers": {
@@ -397,7 +430,8 @@
         "unlimited": true
       },
       "remote_claude": {},
-      "api:openrouter": {}
+      "api:openrouter": {},
+      "agy:gpt-oss": {}
     },
     "classes": {
       "frontier": [
