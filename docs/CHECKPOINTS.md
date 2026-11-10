@@ -73,3 +73,12 @@ terminates it with exit17, removes its simulated VM directory, restores into a n
 directory and resumes in another process. It compares exactly with uninterrupted
 execution. This proves local interruption/retrieval semantics, **not** a live
 Colab/Drive interruption, Torch optimizer compatibility or cross-GPU reproducibility.
+
+## Shared off-machine store (P2.5)
+
+Remote jobs publish to the shared store named by `WORKFLOW_CHECKPOINT_URI` (Drive via rclone, config `storage`):
+files into `checkpoints/<id>/`, verified, then `manifests/<id>.json` last. Only PUBLISHED manifests whose files are
+present and whose code/data/config/environment hashes match are resumable (`latest_resumable`); the newest 3 are
+kept (`prune`). `collect_results` brings home only `local_download` files plus `manifest.json` and
+`artifact_index.json` (`remote_verified` / `local_fetched` / `unvalidated`). Live check:
+`python scripts/verify_p2_storage.py --store drive --case publish-restore`.

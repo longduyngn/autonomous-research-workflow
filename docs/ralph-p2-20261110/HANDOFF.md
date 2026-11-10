@@ -29,7 +29,8 @@
 - Done also: P2.5-09 (optional HF export). P2.5 complete offline.
 - Done also: P2.6-03 (handoff schema + delegation policy + context benchmark). P2.6 complete.
 - Done also: P2.7-01 (mini-DDPM sample + offline e2e PASS).
-- Next: P2.7-02 live acceptance (Kaggle/Colab/Discord; needs browser/accounts), P2.7-03 docs.
+- Done also: P2.7-03 (docs). P2.7-02 deferred (needs user-side live setup; see P2_USAGE_VI.md §5).
+- P2 plan executed; only live acceptance items remain. P2_AUTOPILOT_COMPLETE
 - The scheduled autopilot task is NOT installed (blocked by the session permission classifier); the user
   can install it with `python scripts/p2_autopilot.py install`.
 

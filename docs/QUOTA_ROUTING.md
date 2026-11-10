@@ -226,3 +226,16 @@ capture (fixtures only), and optional Claude status-line field names. Personal
 (120 s) and the `gpt-6-astra`/`gpt-6.1-sol` pins (applied 2026-11-09; backup in
 `storage/quota/workflow_config.before-quota-patch.json`).
 AGY numbers stay unknown: `AgyProbe` only records tier/model availability.
+
+## P2 additions
+
+- `ordered_classes`: classes routed strictly in list order (no stickiness/reset ranking). The `planner` class is
+  Codex `gpt-6-astra` → Claude `opus` → AGY `gemini-4-argon-high`.
+- Pinned roles (`roles.<role>.pinned` + `fallbacks` of the same provider type) are resolved before task overrides
+  and classes; Codex/Claude exhaustion never affects them; an exhausted chain still lets the communicator answer
+  (template) while watchers wait and keep their events.
+- Validator independence: the router ranks the operator's last account last (`avoid`), also inside ordered chains;
+  the QUOTA_ROUTE reason says whether the validator was independent.
+- Boundary failover: on a quota hit the controller writes `.workflow/failover/<role>.json` and, when another route
+  has quota, resumes after 15 s instead of waiting for the old reset (`QUOTA_FAILOVER` event).
+- The usage/cost ledger is written for every invocation even with routing disabled.

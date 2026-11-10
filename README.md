@@ -125,7 +125,8 @@ worker-free waits and exact-action approvals are explained in the
 - [W&B progress and recoverable stall supervision](docs/PROGRESS_MONITORING.md)
 - [Reusable local AGY manager and Colab worker (opt-in)](docs/REMOTE_AGY.md)
 - [Cloud Claude operator/validator CPU pilot and authentication](docs/REMOTE_AUTH.md#actual-claude-acceptance)
-- [Future rented compute adapters](docs/COMPUTE_EXTENSIONS.md)
+- [Colab/Kaggle job adapters and future rented compute](docs/COMPUTE_EXTENSIONS.md)
+- [P2 overview (Vietnamese): providers, failover, Drive store, compute, approvals](docs/ralph-p2-20261110/P2_USAGE_VI.md)
 
 Start with local tasks before configuring Colab or Kaggle. Colab needs a signed-in
 browser and authenticated bridge; its browser helper currently targets Windows
@@ -146,3 +147,21 @@ This is a local workflow for trusted code, not a multi-tenant execution service.
 Snapshots prevent file conflicts; they are not an OS sandbox. Model access and
 cloud quotas depend on your accounts. Historical reports/experiments are
 separate under `archive/`; persistent task history stays under `storage/`.
+
+## P2 capabilities (2026-11)
+
+- **Roles:** `planner` (formerly `researcher`; legacy name still accepted) plans spec, measurable acceptance
+  criteria and Ralph items. Its route is a strict chain: Codex `gpt-6-astra` → Claude Opus → AGY Gemini 4 Argon high.
+- **Pinned chat/watch roles:** `communicator`, `workspace_watcher`, `world_watcher` use AGY Gemini 3.8 Flash low and
+  fall back only inside AGY (Claude Sonnet 5.5 low → GPT-OSS 120B medium); with AGY unavailable they answer from
+  controller facts without a model.
+- **Quota failover:** a quota hit writes a role handoff and the router moves the role to another provider at the
+  next Ralph boundary (no retry consumed); the validator prefers an account different from the operator's.
+- **API provider:** OpenCode 1.19.5 is the agent loop for API models; profile `opencode_api_openrouter` picks the best
+  zero-priced OpenRouter model automatically and never a priced one (`python scripts/openrouter_free.py list`).
+- **Plan approval:** only when asked (`--approve-plan` or "approve the plan first" / "duyệt plan trước").
+- **No default time budgets:** tasks, agents and jobs run until done unless the user states a budget.
+- **Shared store:** checkpoints/heavy artifacts go to Google Drive via rclone (`storage` config); only light results
+  and the manifest come to `storage/results/`. Colab/Kaggle jobs use `core/compute_jobs.py` adapters.
+- **Checks:** `python scripts/verify_p2_api.py --offline --with-cli`, `python scripts/verify_p2_providers.py --offline`,
+  `python scripts/verify_p2_storage.py --store drive`, `python scripts/verify_p2_e2e.py --offline`.

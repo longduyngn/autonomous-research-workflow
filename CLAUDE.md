@@ -14,6 +14,11 @@ docs/ralph-next/VERIFICATION_20261104.md; current account access requires a live
 - Communicator memory is per authenticated user/guild across tasks. Planner,
   operator and validator memory is per task/role. Native IDs are caches; current
   DB facts and on-disk handoffs remain authoritative. Rotation writes handover.
+- P2 (2026-11-11): role `planner` (legacy `researcher` accepted) on the ordered chain Codex gpt-6-astra →
+  Claude Opus → AGY Argon high; communicator/watchers pinned to AGY Gemini 3.8 Flash low with AGY-only
+  fallbacks; quota hit → handoff + boundary failover; plan approval only on request; no default time
+  budgets; checkpoints on the shared Drive store via rclone; API models via OpenCode (OpenRouter free).
+  Plan, decisions and evidence: docs/ralph-p2-20261110/ (EXECUTION_LOG.md, HANDOFF.md).
 - Two task slots, maximum configurable three. Sequential Ralph within a task;
   milestones optional. One managed personal-Colab runtime, including CPU actions.
 - Real CLI sessions can require reload after configuration changes. Earlier AGY

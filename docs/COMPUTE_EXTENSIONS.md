@@ -1,11 +1,19 @@
-# Future compute extensions
+# Compute: Colab/Kaggle job adapters and future rented machines
+
+Managed notebook/batch jobs use `core/compute_jobs.py` (P2.5): `JobSpec`, `JobController` (submission journal:
+SUBMITTING before the effect, SUBMISSION_UNKNOWN never resubmitted), adapters in `core/compute_backends.py`
+(`ColabJobAdapter`, `KaggleJobAdapter`), the model-free poller `core/compute_poller.py`, the shared store and
+manifest in `core/artifact_store.py`, light results in `core/results.py`, and cross-backend resume via
+`plan_successor`. Kaggle status never cancels; `kaggle_job_cancel` targets the pushed version only.
+
+## Future rented machines (provisioning, disabled)
 
 Shadeform, VastAI, Runpod and remote SSH are registered capability names, all
 disabled. No vendor SDK, account access, provisioning or SSH connection is included.
 `compute_capabilities` reports this explicitly. Existing local/Colab/Kaggle paths
 are unchanged; a plan cannot silently fall back to a paid provider.
 
-Implement `core.compute.ComputeAdapter` in a separate adapter module, then register
+Implement `core.compute.ProvisioningAdapter` (legacy name `ComputeAdapter`) in a separate adapter module, then register
 it explicitly in host code. Adding `enabled: true` alone cannot enable provisioning.
 The lifecycle contract is provision(request, durable_request_key), observe(identity),
 stop(identity), and download(identity, files, destination). `ComputeRequest` requires

@@ -151,3 +151,15 @@ References: [Codex execution](https://learn.chatgpt.com/docs/non-interactive-mod
 [Codex commands](https://learn.chatgpt.com/docs/developer-commands),
 [OpenCode CLI](https://opencode.ai/docs/cli/),
 [OpenCode permissions](https://opencode.ai/docs/permissions/).
+
+## API models through OpenCode (P2.1)
+
+An `opencode_cli` provider with an `api_profile` runs any API model through OpenCode 1.19.5 (pinned in
+`config/provider_versions.json`). Vendors: `openrouter`, `openai`, `deepseek`, `gemini`, `anthropic`, `local`.
+The generated OpenCode config references the key by variable name (`{env:OPENROUTER_API_KEY}`) and runs in an
+isolated XDG home inside the task workspace, so user/global/Claude Code settings cannot change the route.
+`auto_free: true` (OpenRouter) selects the best zero-priced tool-capable model from the public catalog
+(cached in `storage/openrouter`); a 429 cools down only that model; when every free model cools down the account
+`api:openrouter` waits. `free_only: true` refuses any priced model. The adapter passes `--dir <workspace>`
+(OpenCode otherwise resolves paths against the inherited PWD), resumes only the exact stored `--session`, and
+reports tokens/cost from `step_finish` events. Quota account per free model: `api:openrouter:<model>`.
