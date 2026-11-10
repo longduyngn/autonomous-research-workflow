@@ -52,6 +52,18 @@ def account_for(provider, model=''):
         return 'claude'
     if kind == 'remote_claude_operator':
         return 'remote_claude'
+    if kind == 'opencode_cli' and provider.get('api_profile'):
+        # Metered where billing/quota happens: a model via OpenRouter is api:openrouter.
+        profile = provider['api_profile']
+        return profile.get('account') or f"api:{profile.get('vendor', 'unknown')}"
+    if kind == 'http_llm' and provider.get('base_url'):
+        from urllib.parse import urlparse
+        host = urlparse(provider['base_url']).hostname or ''
+        for marker, account in (('openrouter.ai', 'api:openrouter'), ('api.openai.com', 'api:openai'),
+                                ('api.deepseek.com', 'api:deepseek'), ('generativelanguage.googleapis.com', 'api:gemini'),
+                                ('api.anthropic.com', 'api:anthropic')):
+            if host.endswith(marker):
+                return account
     if kind == 'agy_cli':
         for prefix, account in (('gemini-4-argon', 'agy:gemini-4-argon'), ('gemini-3.8-flash', 'agy:gemini-3.8-flash'),
                                 ('claude', 'agy:claude'), ('gpt-oss', 'agy:gpt-oss')):

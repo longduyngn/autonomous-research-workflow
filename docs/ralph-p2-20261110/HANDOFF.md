@@ -15,9 +15,12 @@
 
 ## Current position
 
-- Done: P2.0-01, P2.1-01 (contract in `config/provider_versions.json`, fixtures in `tests/fixtures/opencode/1.19.5/`).
-- Next: P2.1-02 (API profiles, generated isolated OpenCode config) + P2.1-02b (OpenRouter free-model discovery),
-  then P2.1-03 (adapter: close stdin, pass `--dir`, parse tool_use/step_finish/error into the standard result).
+- Done: P2.0-01, P2.1-01 (contract in `config/provider_versions.json`, fixtures in `tests/fixtures/opencode/1.19.5/`),
+  P2.1-02 (`core/opencode_config.py`), P2.1-02b (`core/openrouter_free.py`).
+- Next: P2.1-03 adapter in `core/providers.py` opencode branch: close stdin, pass `--dir`, isolated env from
+  `opencode_config.isolated_env` when `api_profile` is set, auto_free model via `FreeModelSelector`
+  (state `storage/openrouter`), free_only check, parse tool_use/step_finish(tokens,cost)/error(statusCode,
+  retry-after) into the standard result; 429 → cool down that free model and report quota.
 - The scheduled autopilot task is NOT installed (blocked by the session permission classifier); the user
   can install it with `python scripts/p2_autopilot.py install`.
 

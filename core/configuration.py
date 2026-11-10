@@ -52,6 +52,15 @@ def validate_config(config):
     if not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("task_timeout_seconds must be positive and finite")
     providers = config.get("providers", {})
+    from core.opencode_config import api_profile
+    for name, provider in providers.items():
+        if isinstance(provider, dict) and provider.get("api_profile"):
+            if provider.get("type") != "opencode_cli":
+                raise ValueError(f"Provider {name}: api_profile requires type opencode_cli")
+            try:
+                api_profile(provider)
+            except ValueError as exc:
+                raise ValueError(f"Provider {name}: {exc}") from None
     for role, settings in config.get("roles", {}).items():
         if settings.get("provider") not in providers:
             raise ValueError(f"Unknown provider for {role}: {settings.get('provider')}")

@@ -169,6 +169,33 @@
           "default": ""
         }
       }
+    },
+    "opencode_api_openrouter": {
+      "type": "opencode_cli",
+      "executable": "opencode",
+      "api_profile": {
+        "vendor": "openrouter",
+        "api_key_env": "OPENROUTER_API_KEY",
+        "account": "api:openrouter",
+        "free_only": true,
+        "auto_free": true,
+        "min_context": 32768
+      },
+      "models": {
+        "research": {
+          "env": "OPENCODE_OPENROUTER_RESEARCH_MODEL",
+          "default": ""
+        },
+        "worker": {
+          "env": "OPENCODE_OPENROUTER_WORKER_MODEL",
+          "default": ""
+        },
+        "fast": {
+          "env": "OPENCODE_OPENROUTER_FAST_MODEL",
+          "default": ""
+        }
+      },
+      "description": "OpenCode agent loop over OpenRouter. auto_free picks the best zero-priced tool-capable model (catalog cached in storage/openrouter); free_only never allows a priced model."
     }
   },
   "roles": {
@@ -369,7 +396,8 @@
       "agy:gemini-4-argon": {
         "unlimited": true
       },
-      "remote_claude": {}
+      "remote_claude": {},
+      "api:openrouter": {}
     },
     "classes": {
       "frontier": [
