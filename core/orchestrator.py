@@ -255,20 +255,21 @@ class HybridOrchestrator:
         """Controller-owned handoff so the next provider can continue this role safely (P2.4-02)."""
         if not task.workspace_path:
             return None
-        from core.role_memory import atomic_json
+        from core.handoff import write_handoff
         data = result.structured_data or {}
-        handoff = {
-            'task_id': task.id, 'role': role, 'step_index': task.step_index, 'plan_revision': task.plan_revision,
-            'feedback_revision': task.feedback_revision, 'failed_provider': provider_name,
-            'account': exhausted.get('account'), 'resets_at': exhausted.get('resets_at'),
-            'reason': exhausted.get('matched'), 'run_id': data.get('run_id'),
-            'tools_observed': data.get('native_tools') or [t.get('name') for t in data.get('tool_trace', []) if isinstance(t, dict)],
-            'provider_handoff': data.get('handoff'), 'active_job_id': task.remote_job_id or None,
-            'output_tail': (result.output or '')[-2000:],
-            'next_safe_action': 'Reconcile files and registered jobs, then continue the same step; never repeat completed effects.',
-        }
+        tools = data.get('native_tools') or [t.get('name') for t in data.get('tool_trace', []) if isinstance(t, dict)]
         path = Path(task.workspace_path) / '.workflow' / 'failover' / f'{role}.json'
-        atomic_json(path, handoff)
+        write_handoff(path, task_id=task.id, role=role, iteration_id=f'step-{task.step_index + 1}',
+                      plan_revision=task.plan_revision, feedback_revision=task.feedback_revision,
+                      completed_actions=[f'tool {name} ran' for name in tools if name],
+                      unresolved_effects=(['tool calls ran before the quota stop; outcome not verified'] if tools else []),
+                      pending_actions=[f'continue {role} step {task.step_index + 1}'],
+                      active_job_ids=[task.remote_job_id] if task.remote_job_id else [],
+                      next_safe_action='Reconcile files and registered jobs, then continue the same step; never repeat completed effects.',
+                      extra={'failed_provider': provider_name, 'account': exhausted.get('account'),
+                             'resets_at': exhausted.get('resets_at'), 'reason': exhausted.get('matched'),
+                             'run_id': data.get('run_id'), 'tools_observed': tools,
+                             'provider_handoff': data.get('handoff'), 'output_tail': (result.output or '')[-2000:]})
         return path
 
     def _quota_wait(self, task, status, decision):

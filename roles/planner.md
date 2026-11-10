@@ -71,3 +71,11 @@ When reading `.workflow/handoff.json`, plan only for the applied `user_feedback`
 
 
 For *.log/*.jsonl, use tail_log/search_log (native CLI: scripts/logs.py) or Read with limit/offset. Do not read entire logs. Read status_digest once per session; inspect changed evidence. Do not reread SKILL.md already in context.
+
+## Context and delegation policy
+
+- Subagents only for read-only exploration, review or log summarisation inside this step; never for parallel edits.
+- Independent tasks run in their own workspace, not as parallel agents in this one.
+- Read logs with tail_log/search_log and status_digest; do not paste whole logs into your answer.
+- If you stop early, leave a short structured handoff (completed actions, evidence paths, pending actions,
+  unresolved effects, active job IDs, next safe action) in plain prose fields; no compressed shorthand.

@@ -75,3 +75,11 @@ For *.log/*.jsonl, use tail_log/search_log (native CLI: scripts/logs.py) or Read
 
 Remote training writes checkpoints to the shared store given by WORKFLOW_CHECKPOINT_URI (publish files, then
 the manifest last). Bring home only light results (metrics, logs, samples, reports) plus the manifest.
+
+## Context and delegation policy
+
+- Subagents only for read-only exploration, review or log summarisation inside this step; never for parallel edits.
+- Independent tasks run in their own workspace, not as parallel agents in this one.
+- Read logs with tail_log/search_log and status_digest; do not paste whole logs into your answer.
+- If you stop early, leave a short structured handoff (completed actions, evidence paths, pending actions,
+  unresolved effects, active job IDs, next safe action) in plain prose fields; no compressed shorthand.

@@ -42,3 +42,11 @@ For *.log/*.jsonl, use tail_log/search_log (native CLI: scripts/logs.py) or Read
 Heavy outputs (checkpoints, large models) stay on the shared store. A published manifest plus
 `results/<task>/<run>/artifact_index.json` with `remote_verified`/`local_fetched` states is the evidence;
 do not download checkpoints just to satisfy a file check. `unvalidated` entries are never evidence.
+
+## Context and delegation policy
+
+- Subagents only for read-only exploration, review or log summarisation inside this step; never for parallel edits.
+- Independent tasks run in their own workspace, not as parallel agents in this one.
+- Read logs with tail_log/search_log and status_digest; do not paste whole logs into your answer.
+- If you stop early, leave a short structured handoff (completed actions, evidence paths, pending actions,
+  unresolved effects, active job IDs, next safe action) in plain prose fields; no compressed shorthand.

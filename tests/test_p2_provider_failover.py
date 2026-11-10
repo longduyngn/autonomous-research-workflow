@@ -56,8 +56,11 @@ class FailoverTests(unittest.TestCase):
             self.assertEqual(db.get_task(task.id).retry_count, 0)
             handoff_path = Path(task.workspace_path) / '.workflow' / 'failover' / 'operator.json'
             handoff = json.loads(handoff_path.read_text(encoding='utf-8'))
-            self.assertEqual((handoff['failed_provider'], handoff['account'], handoff['tools_observed']),
+            extra = handoff['extra']
+            self.assertEqual((extra['failed_provider'], extra['account'], extra['tools_observed']),
                              ('codex_cli', 'codex', ['write']))
+            self.assertEqual(handoff['completed_actions'], ['tool write ran'])  # standard handoff schema
+            self.assertTrue(handoff['unresolved_effects'])
             self.assertTrue([e for e in db.get_recent_events(limit=100) if e['event_type'] == 'QUOTA_FAILOVER'])
             with db._connect() as c:
                 c.execute('UPDATE task_waits SET due=0')
