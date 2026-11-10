@@ -13,7 +13,7 @@
     "poll_interval_seconds": 2.0,
     "max_concurrent_tasks": 2,
     "max_attempts": 3,
-    "task_timeout_seconds": 86400,
+    "task_timeout_seconds": 0,
     "replan_after_failures": 2,
     "max_replans": 1
   },
@@ -525,7 +525,7 @@
   "monitoring": {
     "enabled": true,
     "agent_review_seconds": 900,
-    "max_agent_seconds": 21600,
+    "max_agent_seconds": 0,
     "max_diagnostics_per_job": 2,
     "project": "antigravity-research"
   }

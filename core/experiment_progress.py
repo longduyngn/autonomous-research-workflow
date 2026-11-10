@@ -27,7 +27,7 @@ class ExperimentProgress:
             raise ValueError('Invalid job ID')
         if mode not in {'online', 'offline', 'disabled'}:
             raise ValueError('Invalid tracking mode')
-        budget_seconds=float(os.environ.get('WORKFLOW_JOB_BUDGET_SECONDS','43200')) if budget_seconds is None else budget_seconds
+        budget_seconds=float(os.environ.get('WORKFLOW_JOB_BUDGET_SECONDS','0') or 0) if budget_seconds is None else budget_seconds  # 0 = none
         if (not isinstance(heartbeat_seconds,(int,float)) or not math.isfinite(heartbeat_seconds)
                 or heartbeat_seconds<0 or (heartbeat_seconds and heartbeat_seconds<1)
                 or not isinstance(budget_seconds,(int,float)) or not math.isfinite(budget_seconds) or budget_seconds<0):

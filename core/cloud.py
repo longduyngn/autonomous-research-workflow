@@ -211,7 +211,7 @@ class CloudTools:
     def experiment_job_register(self,args):
         store,task_id = self._progress_context()
         job,new = store.register(task_id,args['request_key'],args['backend'],args.get('external_id',''),
-            args.get('wandb_path',''),args.get('total',0),args.get('stall_seconds',900),args.get('budget_seconds',43200))
+            args.get('wandb_path',''),args.get('total',0),args.get('stall_seconds',900),args.get('budget_seconds',0))
         return {'job':job,'newly_registered':new,'submission_performed':False,
                 'tracking_defaults':{k:self.workflow_config.get('monitoring',{}).get(k,default)
                                      for k,default in [('project','antigravity-research'),('entity',None)]}}
@@ -248,7 +248,7 @@ class CloudTools:
         job = store.get(args['job_id'],task_id)
         if job['backend']!='colab' or not job['external_id']:
             raise ValueError('Register the prepared Colab cell ID before launch')
-        if time.time()>job['budget_until']:
+        if job['budget_until'] and time.time()>job['budget_until']:
             raise ValueError('Job budget expired before launch; reconcile instead of starting compute')
         with store.db._connect() as c:
             # Commit uncertain submission BEFORE the browser effect. Crash -> reconcile,
@@ -696,7 +696,7 @@ class CloudTools:
             "hardware": hardware, "requested_slug": slug,
             "inputs": {name: hashlib.sha256(self.path(name).read_bytes()).hexdigest() for name in args.get("input_files", [])},
             "datasets": args.get("dataset_sources", []), "competitions": args.get("competition_sources", []),
-            "timeout_seconds": args.get("timeout_seconds", 36000)}
+            "timeout_seconds": args.get("timeout_seconds", 0)}
         fingerprint = hashlib.sha256(json.dumps(fingerprint_data, sort_keys=True).encode()).hexdigest()
         try: progress,task_id=self._progress_context()
         except PermissionError: progress,task_id=None,None
@@ -704,7 +704,7 @@ class CloudTools:
             if not progress: return job
             tracked,_=progress.register(task_id,'kaggle-'+fingerprint[:40],'kaggle',external_id=job['id'],
                 total=args.get('total',0),stall_seconds=args.get('stall_seconds',900),
-                budget_seconds=args.get('timeout_seconds',36000))
+                budget_seconds=args.get('timeout_seconds',0))
             job['tracking_id']=tracked['id']
             return job
         for previous in self.path(".workflow/cloud_jobs").glob("*/job.json"):
@@ -748,12 +748,15 @@ class CloudTools:
             # Register task ownership and an uncertain submission before push.
             progress.observe(job['tracking_id'],{'state':'SUBMISSION_UNKNOWN'})
             bootstrap=("import os\nos.environ['WORKFLOW_EXPERIMENT_JOB_ID'] = "+repr(job['tracking_id'])+
-                       "\nos.environ['WORKFLOW_JOB_BUDGET_SECONDS'] = "+repr(str(args.get('timeout_seconds',36000)))+'\n')
+                       "\nos.environ['WORKFLOW_JOB_BUDGET_SECONDS'] = "+repr(str(args.get('timeout_seconds',0)))+'\n')
             nb['cells'].insert(0,{'cell_type':'code','id':uuid.uuid4().hex[:8],'metadata':{},
                                   'source':bootstrap.splitlines(keepends=True),'outputs':[],'execution_count':None})
             (stage/path.name).write_text(json.dumps(nb,indent=2),encoding='utf-8')
             job_file.write_text(json.dumps(job,indent=2),encoding='utf-8')
-        argv = ["push", "-p", str(stage), "--timeout", str(max(1, int(args.get("timeout_seconds", 36000))))]
+        argv = ["push", "-p", str(stage)]
+        if args.get("timeout_seconds"):
+            # Only a user-stated budget is passed; otherwise the platform limit applies (D6).
+            argv += ["--timeout", str(max(1, int(args["timeout_seconds"])))]
         if hardware != "CPU" and accelerators[hardware]:
             argv += ["--accelerator", accelerators[hardware]]
         try:

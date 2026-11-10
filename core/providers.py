@@ -602,7 +602,8 @@ class EphemeralAgentRunner:
         if (options.get('enabled', True) and role in ACTION_ROLES
                 and env.get('WORKFLOW_DB_PATH') and env.get('WORKFLOW_TASK_ID')):
             from core.supervision import extension_for_progress
-            hard = float(options.get('max_agent_seconds',21600))
+            import math
+            hard = float(options.get('max_agent_seconds', 0) or 0) or math.inf  # D6: no default ceiling
             if self.deadline:
                 hard = min(hard,max(1,self.deadline-time.time()))
             supervision = {'hard_timeout':max(timeout,hard), 'timeout_callback':lambda:

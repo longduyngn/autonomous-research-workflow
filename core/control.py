@@ -43,6 +43,7 @@ class ControlPlane:
             ''')
 
     def wait(self, task_id, kind, resume, reason, dependency='', delay=15, timeout=86400):
+        """Durable wait. ``timeout`` None/0 means no wait deadline (D6: e.g. a running remote job)."""
         if kind not in {'REMOTE', 'RESOURCE', 'APPROVAL', 'PROVIDER', 'INPUT'}:
             raise ValueError('Unknown wait kind')
         with self.db._connect() as c:
@@ -53,7 +54,7 @@ class ControlPlane:
             c.execute('INSERT OR IGNORE INTO task_waits VALUES(?,?,?,?,?,?,?)',
                       (task_id, kind, resume, reason, dependency, time.time(), time.time()+delay))
             c.execute('UPDATE tasks SET status=?,current_role=NULL,wait_deadline=CASE WHEN wait_deadline=0 THEN ? ELSE wait_deadline END WHERE id=?',
-                      ('WAITING_'+kind, time.time()+timeout, task_id))
+                      ('WAITING_'+kind, time.time()+timeout if timeout else 0, task_id))
         return self.db.get_task(task_id)
 
     def waits(self):

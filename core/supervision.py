@@ -66,7 +66,7 @@ class Supervisor:
             if not task or task.status in {'COMPLETED','FAILED','ESCALATED'}: continue
             if (job['diagnostic_count']>=self.options.get('max_diagnostics_per_job',2)
                     or (job['diagnosed_progress']==job['progress_at'] and not job['diagnostic_owner'])): continue
-            if (time.time()-job['progress_at']<job['stall_seconds'] and time.time()<job['budget_until']): continue
+            if (time.time()-job['progress_at']<job['stall_seconds'] and (not job['budget_until'] or time.time()<job['budget_until'])): continue
             try:
                 if not self._checkin_ready(task,job['id']+'-'+str(job['progress_at'])): continue
             except Exception as exc:

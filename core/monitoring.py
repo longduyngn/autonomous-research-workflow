@@ -53,13 +53,13 @@ class ProgressStore:
                 if key not in columns: c.execute(f'ALTER TABLE experiment_jobs ADD COLUMN {key} {definition}')
 
     def register(self, task_id, request_key, backend, external_id='', path='', total=0,
-                 stall_seconds=900, budget_seconds=43200, now=None):
+                 stall_seconds=900, budget_seconds=0, now=None):
         now = time.time() if now is None else now
         if backend not in {'colab','kaggle','local'} or not re.fullmatch('[a-zA-Z0-9_.-]{1,100}',request_key):
             raise ValueError('Invalid backend/request key')
         path = wandb_path(path)
         if (not all(isinstance(x,(int,float)) and math.isfinite(x) for x in (total,stall_seconds,budget_seconds))
-                or total<0 or stall_seconds<1 or not 1<=budget_seconds<=7*86400):
+                or total<0 or stall_seconds<1 or not (budget_seconds == 0 or 1<=budget_seconds<=7*86400)):
             raise ValueError('Invalid job limits')
         identity = [backend,external_id,path,total,stall_seconds,budget_seconds]
         fingerprint = hashlib.sha256(json.dumps(identity).encode()).hexdigest()
@@ -79,7 +79,7 @@ class ProgressStore:
             c.execute('''INSERT INTO experiment_jobs(id,task_id,request_key,fingerprint,backend,external_id,
               wandb_path,total,progress_at,created_at,budget_until,stall_seconds,due)
               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)''',
-              (key,task_id,request_key,fingerprint,backend,external_id,path,total,now,now,now+budget_seconds,stall_seconds,now))
+              (key,task_id,request_key,fingerprint,backend,external_id,path,total,now,now,now+budget_seconds if budget_seconds else 0,stall_seconds,now))
             c.execute('UPDATE tasks SET remote_job_id=? WHERE id=?',(key,task_id))
         return self.get(key),True
 
@@ -157,7 +157,7 @@ class ProgressStore:
             r=c.execute('SELECT * FROM experiment_jobs WHERE id=?',(key,)).fetchone()
             if (not r or r['state'] in TERMINAL or r['diagnostic_until']>now or r['diagnostic_count']>=max_count
                     or (r['diagnosed_progress']==r['progress_at'] and not r['diagnostic_owner'])
-                    or (now-r['progress_at']<r['stall_seconds'] and now<r['budget_until'])):
+                    or (now-r['progress_at']<r['stall_seconds'] and (not r['budget_until'] or now<r['budget_until']))):
                 return False
             c.execute('''UPDATE experiment_jobs SET diagnostic_owner=?,diagnostic_until=?,
               diagnosed_progress=progress_at,diagnostic_state=state,diagnostic_count=diagnostic_count+1 WHERE id=?''',(owner,now+300,key))

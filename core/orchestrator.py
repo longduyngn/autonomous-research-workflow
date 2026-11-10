@@ -241,6 +241,16 @@ class HybridOrchestrator:
             record_route(self.db, self.config, role, decision, task.id, self._route_seen)
         return decision
 
+    def _task_budget(self, task):
+        """Wall-clock budget in seconds, or 0 for none (D6). A plan budget comes from the user's request."""
+        configured = float(self.config.get('orchestrator', {}).get('task_timeout_seconds', 0) or 0)
+        try:
+            planned = float(json.loads(task.plan_json or '{}').get('budget_seconds') or 0)
+        except (ValueError, TypeError, AttributeError):
+            planned = 0
+        values = [v for v in (configured, planned) if v > 0]
+        return min(values) if values else 0
+
     def _write_failover_handoff(self, task, role, provider_name, exhausted, result):
         """Controller-owned handoff so the next provider can continue this role safely (P2.4-02)."""
         if not task.workspace_path:
@@ -360,15 +370,16 @@ class HybridOrchestrator:
             task = self.db.update_task(task_id, workspace_path=str(workspace))
             self._worker_local.runner = self.runner.for_workspace(workspace) if hasattr(self.runner, "for_workspace") else self.runner
             self._worker_local.runner.cancel_event = cancelled
-            self._worker_local.runner.deadline = task.started_at + task.waiting_seconds + float(self.config.get("orchestrator", {}).get("task_timeout_seconds", 86400))
+            budget = self._task_budget(task)
+            self._worker_local.runner.deadline = (task.started_at + task.waiting_seconds + budget) if budget else None
             while task.status not in terminal:
                 current = self.db.get_task(task_id)
                 if lost.is_set() or current.lease_owner != owner:
                     raise RuntimeError("Task lease was lost; stopping worker")
                 if cancelled.is_set():
                     raise InterruptedError("Worker shutdown requested; inspect artifacts before resuming")
-                budget = float(self.config.get("orchestrator", {}).get("task_timeout_seconds", 86400))
-                if time.time() - current.started_at - current.waiting_seconds > budget:
+                budget = self._task_budget(current)
+                if budget and time.time() - current.started_at - current.waiting_seconds > budget:
                     task = self.db.finalize_task(task_id, "ESCALATED", "Task wall-clock budget exceeded",
                                                  feedback="Task wall-clock budget exceeded")
                     break
@@ -697,7 +708,7 @@ class HybridOrchestrator:
             self.db.update_task(task.id, remote_job_id=marker.group(1))
             return self.control.wait(task.id,'REMOTE','WAITING_REMOTE','Remote job executing',marker.group(1),
                 delay=float(self.config.get('cloud',{}).get('poll_interval_seconds',15)),
-                timeout=float(self.config.get('cloud',{}).get('remote_timeout_seconds',86400)))
+                timeout=float(self.config.get('cloud',{}).get('remote_timeout_seconds',0)) or None)  # D6: no default deadline
         return self._transition(task.id, TaskStatus.VALIDATING, RoleName.VALIDATOR.value)
 
     def _poll_remote(self, task):
@@ -711,7 +722,7 @@ class HybridOrchestrator:
             if job['state']=='COMPLETED':
                 self.db.update_task(task.id,review_reason='Compute completed; download existing artifacts only')
                 return self._transition(task.id,TaskStatus.OPERATING,'operator')
-            if time.time()>job['budget_until']:
+            if job['budget_until'] and time.time()>job['budget_until']:
                 reason='Compute budget exhausted; reconcile the saved checkpoint and resource before authorizing more compute'
                 waited=self.control.wait(task.id,'INPUT','PLANNING',reason,job['id'])
                 self.supervisor.notice(task,reason)

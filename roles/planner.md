@@ -29,7 +29,7 @@ Return a concise, concrete brief with these parts:
 1. **Specification** - what will be built or reproduced, relevant files, chosen method and compute backend.
 2. **Measurable acceptance criteria** - each criterion is checkable (an executable check where possible).
 3. **Ralph work items** - ordered, bounded items; each item is one verifiable unit of work. A simple task may have one item.
-4. **Budget** - only when the user's request states a time/GPU/cost budget; otherwise write "no budget requested" and do not invent one.
+4. **Budget** - only when the user's request states a time/GPU/cost budget; otherwise write "no budget requested" and do not invent one. A stated time budget goes into the plan block as `"budget_seconds": N`.
 
 Optionally add one machine-readable block (`planner_plan`; the legacy name `research_plan` is still accepted):
 

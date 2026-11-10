@@ -36,7 +36,7 @@ def validate_config(config):
     for role in set(ROLE_TURN_BUDGET) | set(limits):
         role_turn_budget(config, role)
     monitor=config.get('monitoring',{})
-    for name,default,low,high in [('agent_review_seconds',900,1,86400),('max_agent_seconds',21600,1,604800),
+    for name,default,low,high in [('agent_review_seconds',900,1,86400),('max_agent_seconds',0,0,604800),
                                   ('max_diagnostics_per_job',2,0,10)]:
         value=monitor.get(name,default)
         if type(value) is not int or not low<=value<=high:
@@ -53,9 +53,12 @@ def validate_config(config):
     repairs = orchestrator.get('max_plan_repairs', 2)
     if type(repairs) is not int or not 0 <= repairs <= 10:
         raise ValueError('max_plan_repairs must be an integer between 0 and 10')
-    timeout = orchestrator.get("task_timeout_seconds", 86400)
-    if not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
-        raise ValueError("task_timeout_seconds must be positive and finite")
+    timeout = orchestrator.get("task_timeout_seconds", 0)
+    # D6: 0/absent = no wall-clock budget; a budget applies only when the user sets one.
+    if timeout is None:
+        timeout = 0
+    if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or not math.isfinite(timeout) or timeout < 0:
+        raise ValueError("task_timeout_seconds must be 0 (no budget) or a positive finite number")
     providers = config.get("providers", {})
     from core.opencode_config import api_profile
     for name, provider in providers.items():

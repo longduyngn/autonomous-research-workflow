@@ -35,6 +35,12 @@ def parse_plan(output):
         if not all(isinstance(a, str) for a in check["argv"]):
             raise ValueError("Check argv must contain strings")
     parsed = {"mode": plan["mode"], "steps": steps, "checks": checks, 'backend': backend}
+    if 'budget_seconds' in plan:
+        # D6: only a budget the user stated; the planner must not invent one.
+        budget = plan['budget_seconds']
+        if not isinstance(budget, (int, float)) or isinstance(budget, bool) or not 0 < budget <= 30 * 86400:
+            raise ValueError('budget_seconds must be a positive number of seconds stated by the user')
+        parsed['budget_seconds'] = budget
     if plan.get('simple') is True:
         parsed['simple'] = True  # Optional hint for the quota router's light validator.
     if 'requires' in plan:
