@@ -136,6 +136,7 @@ class WorkspaceDatabase:
                 "event_review_count": "INTEGER NOT NULL DEFAULT 0",
                 "inputs_json": "TEXT NOT NULL DEFAULT '[]'",
                 "source_path": "TEXT NOT NULL DEFAULT ''",
+                "plan_approval": "TEXT NOT NULL DEFAULT 'none'",
             }
             for name, definition in additions.items():
                 if name not in existing:

@@ -142,6 +142,7 @@ def cmd_run(args: argparse.Namespace) -> None:
         source_channel=args.channel,
         source_user=args.user,
         input_files=args.input, source_path=args.source or "",
+        plan_approval="required" if getattr(args, "approve_plan", False) else None,
     )
     print(f"[+] Created Task #{task.id}: '{task.title}'")
     print(f"[+] Context Log File: {task.context_log_path}")
@@ -370,6 +371,7 @@ def main() -> None:
     p_run.add_argument("--provider", default=None, help="Override provider for all roles in this run")
     p_run.add_argument("--input", action="append", default=[], help="Explicit input file; repeat for more files (50 MB total)")
     p_run.add_argument("--source", help="Project directory to snapshot instead of the controller")
+    p_run.add_argument("--approve-plan", action="store_true", help="Pause after planning until the owner approves the plan")
     p_run.set_defaults(func=cmd_run)
 
     p_daemon = sub.add_parser("daemon", help="Run the continuous orchestrator, watchers, and webhook server")
@@ -543,13 +545,15 @@ def main() -> None:
     def enqueue(args):
         _, _, orchestrator, _, _, _ = build_system(load_config())
         task = orchestrator.submit_task(args.prompt, provider_override=args.provider or "",
-                                       input_files=args.input, source_path=args.source or "")
+                                       input_files=args.input, source_path=args.source or "",
+                                       plan_approval="required" if args.approve_plan else None)
         print(f"Queued task #{task.id}. A daemon or Discord worker will pick it up.")
     p_enqueue = sub.add_parser("enqueue", help="Queue a request without starting workers")
     p_enqueue.add_argument("prompt")
     p_enqueue.add_argument("--provider", default=None)
     p_enqueue.add_argument("--input", action="append", default=[])
     p_enqueue.add_argument("--source")
+    p_enqueue.add_argument("--approve-plan", action="store_true", help="Pause after planning until the owner approves the plan")
     p_enqueue.set_defaults(func=enqueue)
 
     args = parser.parse_args()

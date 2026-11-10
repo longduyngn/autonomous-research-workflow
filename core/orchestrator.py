@@ -135,8 +135,13 @@ class HybridOrchestrator:
         input_files=None,
         source_path: str = "",
         source_actor: str = "",
+        plan_approval: Optional[str] = None,
     ) -> TaskRecord:
-        """Create a new task, initialize its context log file, and enqueue it."""
+        """Create a new task, initialize its context log file, and enqueue it.
+
+        ``plan_approval``: ``"required"`` pauses after planning until the owner approves that exact
+        plan revision; ``None`` detects an explicit request in the prompt; default is no approval.
+        """
         # Resolve terse retry commands to real historical instructions, without
         # replacing history or replaying an old workspace's cloud job records.
         match = re.fullmatch(r"(?:reopen|retry)\s+(?:task\s*)?#?(\d+)\.?", user_prompt.strip(), re.I)
@@ -204,8 +209,11 @@ class HybridOrchestrator:
             if source_actor:
                 with self.db._connect() as c:
                     c.execute('INSERT OR IGNORE INTO task_actors VALUES(?,?,?)',(task.id,source_actor,source_user))
+            from core.approvals import wants_plan_approval
+            approval = plan_approval if plan_approval in {"required", "none"} else (
+                "required" if wants_plan_approval(provider_request) else "none")
             return self.db.update_task(task.id, status="PENDING", parent_task_id=parent_task_id,
-                provider_override=provider_override, inputs_json=json.dumps(inputs),
+                provider_override=provider_override, inputs_json=json.dumps(inputs), plan_approval=approval,
                 source_path=str(Path(source_path).resolve()) if source_path else "")
         except Exception as exc:
             self.db.update_task(task.id, status="ESCALATED", outcome="ESCALATED",
@@ -258,6 +266,11 @@ class HybridOrchestrator:
             return self._execute_planner(task)
 
         if status == TaskStatus.OPERATING.value:
+            if task.plan_approval == 'required':
+                from core.approvals import consume_plan_approval
+                verdict = consume_plan_approval(self.db, self.control, task)
+                if verdict == 'missing':
+                    return self._request_plan_approval(task)  # plan changed or never approved
             return self._execute_operator(task)
 
         if status == TaskStatus.VALIDATING.value:
@@ -545,7 +558,19 @@ class HybridOrchestrator:
             from core.role_memory import atomic_json
             atomic_json(state/'plans'/f'plan_{task.plan_revision+1:04d}.json',
                         {'revision':task.plan_revision+1,'reason':task.review_reason,'plan':plan})
+        current = self.db.get_task(task.id)
+        if current.plan_approval == 'required':
+            return self._request_plan_approval(current)
         return self._transition(task.id, TaskStatus.OPERATING, RoleName.OPERATOR.value)
+
+    def _request_plan_approval(self, task):
+        from core.approvals import request_plan_approval
+        key = request_plan_approval(self.db, self.control, task)
+        if not key:
+            return self._fail_or_escalate(task, 'planner', 'Plan approval was requested but the task has no authenticated owner')
+        return self.control.wait(task.id, 'APPROVAL', TaskStatus.OPERATING.value,
+                                 'Plan approval requested by the user; operator waits for this exact plan revision',
+                                 key, delay=15, timeout=7 * 86400)
 
     _execute_researcher = _execute_planner  # legacy name
 

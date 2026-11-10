@@ -98,5 +98,6 @@ class TaskRecord:
     event_review_count: int = 0
     inputs_json: str = "[]"
     source_path: str = ""
+    plan_approval: str = "none"  # "required" only when the user asked to approve the plan
     created_at: str = field(default_factory=utc_now_iso)
     updated_at: str = field(default_factory=utc_now_iso)

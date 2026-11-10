@@ -20,8 +20,8 @@
 - Done also: P2.1-03 (OpenCode adapter + `parse_opencode_stream`), P2.1-04 (session resume), P2.1-05 (API usage ledger), P2.1-06 (`_run_http` HTTP errors).
 - P2.1 complete (P2.1-07 offline + live OpenRouter free smoke passed).
 - Done also: P2.2 (researcher → planner with compatibility; D3 ordered planner chain).
-- Next: P2.6-01 optional plan-approval gate per task (D4': `plan_approval: required|none`, default none),
-  then P2.3-01 pinned AGY roles (communicator/workspace_watcher/world_watcher → gemini-3.8-flash-low, fallback
+- Done also: P2.6-01 (optional plan approval per task).
+- Next: P2.3-01 pinned AGY roles (communicator/workspace_watcher/world_watcher → gemini-3.8-flash-low, fallback
   claude-sonnet-5-5-low → gpt-oss-120b-medium inside AGY, then no-LLM template).
 - The scheduled autopilot task is NOT installed (blocked by the session permission classifier); the user
   can install it with `python scripts/p2_autopilot.py install`.
