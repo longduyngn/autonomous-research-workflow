@@ -172,6 +172,33 @@ closed on unknown runtime state).
 
 ## Verified and unverified
 
+2026-11-10 usage ledger extension: local Claude CLI invocations and the campaign's
+Claude supervisor now write usage to both `quota_ledger` and `agent_runs`, including
+turn count and the provider's cost estimate. A unique invocation `run_key` prevents
+runner/router double counting. Session IDs identify native sessions, not individual
+invocations. Existing rows are preserved by additive migrations; historical sessions
+are not automatically backfilled from audit totals.
+
+The ledger token estimator continues to use input + cache creation + output;
+cache reads remain separately available in `usage_json`. This is not a monetary
+invoice or measured account quota. Measured rate-limit snapshots still take priority.
+One real native Sonnet run on a synthetic read-only fixture was verified in both
+tables (one row each), with no telemetry error. It took one turn with 59,393 cache
+creation tokens and zero cache reads, so native/global context remains substantial.
+This does not establish savings for a long campaign or account-wide usage coverage.
+
+Offline audit (explicit exclusions; no hardcoded SELF session):
+
+```powershell
+python scripts/claude_usage_audit.py audit.json
+python scripts/claude_usage_audit.py audit.json --exclude-session UUID
+```
+
+Audit deduplicates message IDs and tool IDs, records scope/cutoff and skips malformed
+trailing lines. Use the selected invocation's native session row when other live
+sessions can change account-wide aggregate deltas. Verification and remaining live
+limits: [quota optimization report](ralph-p1-20261109/QUOTA_OPTIMIZATION_VERIFICATION_20261110.md).
+
 Verified here with fixtures and live read-only data: Codex rollout shape and parsing
 (`quota status` shows the real account), Claude `rate_limit_event.unifiedWindows`
 shape from saved stream-json, config validation, selection branches, orchestrator

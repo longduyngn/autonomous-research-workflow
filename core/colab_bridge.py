@@ -21,6 +21,29 @@ def browser_action(name, args):
     from core.colab_runtime import runtime_status, prepare_runtime_controls
     if name=='runtime_status':
         return runtime_status(mod)
+    if name == 'snippet_observation':
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser = p.chromium.connect_over_cdp(mod.CDP_URL)
+            page = mod._find_colab_page(browser)
+            if not page:
+                return {'connected': False, 'idle': False}
+            return page.evaluate("""() => {
+                const host = document.querySelector('colab-connect-button');
+                const button = host?.shadowRoot?.querySelector('#connect');
+                const tooltip = button?.getAttribute('tooltiptext') || '';
+                const connected = /connected to|đã kết nối|kết nối với/i.test(tooltip)
+                    && !/disconnected|not connected/i.test(tooltip);
+                const buttons = [...document.querySelectorAll('colab-run-button')];
+                const busy = buttons.some(b => /running|busy|executing/i.test(
+                    [b.getAttribute('execution-state'), b.getAttribute('state'),
+                     b.shadowRoot?.querySelector('button')?.getAttribute('aria-label')].join(' ')));
+                const knownIdle = buttons.every(b => /run cell|chạy ô/i.test(
+                    b.shadowRoot?.querySelector('button')?.getAttribute('aria-label') || '')
+                    || /idle|not-running|not_running/i.test(b.getAttribute('execution-state') || ''));
+                return {connected, idle: connected && !busy && knownIdle,
+                    evidence: 'connected runtime UI and recognized idle cell run controls'};
+            }""")
     if name=='set_runtime':
         if not args.get('hardware'):
             raise ValueError('Choose hardware explicitly')
@@ -122,7 +145,7 @@ def serve_colab_bridge(config, host="127.0.0.1", port=8765, *, start=True, contr
                         result=gate.release(session,generation,before_release=close_forced_client)
                     elif self.path=='/browser':
                         result=gate.execute(session,generation,lambda:browser_action(data['name'],data.get('arguments',{})))
-                    elif self.path not in {'/tools','/call'}:
+                    elif self.path not in {'/tools','/call','/snippet'}:
                         status,result=404,{'error':'Not found'}
                     else:
                         def invoke():
@@ -141,6 +164,10 @@ def serve_colab_bridge(config, host="127.0.0.1", port=8765, *, start=True, contr
                                 client=clients[key]
                             if self.path=='/tools':
                                 return {'tools':client.tools()}
+                            if self.path == '/snippet':
+                                from core.colab_snippet import run_snippet
+                                return run_snippet(client, lambda: browser_action('snippet_observation', {}),
+                                    data['code'], data.get('hardware', 'T4'), data.get('timeout_seconds', 300))
                             if data['name'] not in {t['name'] for t in client.tools()}:
                                 raise ValueError('Tool not available; reconnect browser and list again')
                             return client.call(data['name'],data.get('arguments',{}),timeout=300)

@@ -75,7 +75,7 @@ class AgentTools:
         from core.control import check_worker_lease
         check_worker_lease(getattr(self,'control_environment',{}))
         if (getattr(self,'control_environment',{}).get('WORKFLOW_DIAGNOSTIC_READONLY')=='1'
-                and name not in {'read_file','list_files','search_files'}):
+                and name not in {'read_file','list_files','search_files','tail_log','search_log','status_digest'}):
             raise PermissionError('Recovery facts consultation is read-only; network/write/shell/cloud tools unavailable')
         allowed = {t["function"]["name"] for t in self.schemas()}
         if name not in allowed:

@@ -42,6 +42,51 @@ workflow hooks; its saved controller evidence is labeled accordingly.
 
 ## Turn budgets (soft)
 
+The 2026-11-10 continuation explicitly retains soft budgets. Claude operational
+launchers do not pass `--max-turns`; role defaults remain 5/15/25/35/20 for
+communicator/validator/researcher/operator/guardian. Communicator and guardian
+Claude sessions expose Read/Glob/Grep only. AGY communicator always uses plan
+mode, denies command/write/MCP actions and cannot enable skip-permissions.
+
+Claude final stream results now preserve `usage`, `num_turns`, `total_cost_usd`
+and native model usage. The runner records every invocation with a database
+configured, even when quota routing is disabled. Campaign Claude supervisor
+receipts use the same telemetry helper. Invocation IDs deduplicate the runner
+and router; a resumed native session can contain multiple distinct invocations.
+Metrics are added through compatible SQLite migrations. Telemetry failure is
+recorded in `structured_data.telemetry_error`; it must not cause tool replay.
+
+Native guardian checks always start fresh. Campaign AGY guardian/communicator
+checks also start fresh; operator resume is rotated at the existing 64K context
+threshold or the role's turn budget. Stored usage is an invocation aggregate,
+so that context threshold is conservative rather than an exact final prompt size.
+
+Provider-neutral helpers (use the workflow interpreter):
+
+```powershell
+python scripts/artifacts.py register result.json --workspace . --name result
+python scripts/artifacts.py verify --workspace .
+python scripts/logs.py tail_log run.log --limit 50
+python scripts/logs.py search_log run.log --pattern ERROR --limit 20
+python scripts/fetch_repo.py https://github.com/OWNER/REPO source --workspace .
+python scripts/campaign.py --workspace . --campaign storage/campaigns/smile-pre-publish status_digest
+python scripts/smile_operator.py --help
+python scripts/cloud.py --workspace . colab_run_snippet --code "print(42)" --hardware T4
+```
+
+Source fetch currently supports public GitHub HTTPS repositories, with a shallow
+clone and bounded tarball fallback. It writes FILE_TREE.txt and executes no
+downloaded source. Logs and digests are bounded views; source timestamps remain
+visible and are not live verification.
+
+Colab snippets require an existing ownership token, no running/unresolved tracked
+Colab job, and a positively recognized connected idle UI. The bridge holds its
+resource fence for the whole operation. It never connects/allocates/switches
+runtime hardware. The temporary cell checks hardware and GPU compute processes
+before user code. Unknown UI schemas fail closed. A timeout retains the cell
+for reconciliation, rather than interrupting work or claiming cleanup succeeded.
+This path has fake-bridge tests; no live GPU acceptance was performed.
+
 `role_turn_budget` (legacy key `role_max_turns`; defaults communicator 5, validator 15,
 researcher 25, operator 35) is guidance, not a hard stop. Every role prompt carries the
 budget and asks the agent to wrap up and write a checkpoint/handoff once it passes it.

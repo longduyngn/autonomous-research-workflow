@@ -73,19 +73,20 @@ def prepare_integrations(controller, staging, target):
     artifacts.mkdir(exist_ok=True)
     (artifacts / "SKILL.md").write_text(
         "---\nname: workflow-artifacts\ndescription: Verify a local research artifact and record its real hash and size.\n---\n\n"
+        f"`{sys.executable} {controller / 'scripts/artifacts.py'} register PATH --workspace . --name NAME`\n\n"
+        f"Verify registered files: `{sys.executable} {controller / 'scripts/artifacts.py'} verify --workspace .`\n\n"
         "Read the artifact and validate its actual contents before reporting success. "
-        "Use this command with the workflow Python from AGENTS.md:\n\n"
+        "Legacy alias (registers one file):\n\n"
         "`python .agents/skills/workflow-artifacts/verify.py PATH`\n\n"
-        "It hashes the actual file, prints its size/SHA256, and records evidence under .workflow. "
+        "Do not reread SKILL.md already present in context. For logs use tail_log/search_log "
+        "or native Read limit/offset, never a whole log. It records size/SHA256 under .workflow. "
         "This verifies artifact identity; it does not establish experimental correctness.\n", encoding="utf-8")
     (artifacts / "verify.py").write_text(
-        "import hashlib,json,sys\nfrom pathlib import Path\n"
-        "root=Path(__file__).resolve().parents[3]\np=(root/sys.argv[1]).resolve()\n"
-        "if not p.is_relative_to(root) or not p.is_file(): raise SystemExit('Artifact must be an existing task file')\n"
-        "record={'path':str(p.relative_to(root)),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()}\n"
-        "state=root/'.workflow';state.mkdir(exist_ok=True)\n"
-        "with (state/'artifact-receipts.jsonl').open('a',encoding='utf-8') as f: f.write(json.dumps(record)+'\\n')\n"
-        "print(json.dumps(record))\n", encoding="utf-8")
+        "import json,sys\nfrom pathlib import Path\n"
+        f"sys.path.insert(0,{str(Path(__file__).resolve().parent.parent)!r})\n"
+        "from core.artifacts import register\n"
+        "root=Path(__file__).resolve().parents[3]\n"
+        "print(json.dumps(register(root,'',sys.argv[1])))\n", encoding="utf-8")
     skills.append("workflow-artifacts")
     checkpoints = skill_root / 'workflow-checkpoints'
     checkpoints.mkdir(exist_ok=True)

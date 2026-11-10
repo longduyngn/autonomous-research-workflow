@@ -507,6 +507,14 @@ class QuotaStore:
               tokens INTEGER NOT NULL DEFAULT 0,duration REAL NOT NULL DEFAULT 0,success INTEGER NOT NULL DEFAULT 0,
               limit_error INTEGER NOT NULL DEFAULT 0,resets_at REAL);
             ''')
+            columns = {r[1] for r in c.execute('PRAGMA table_info(quota_ledger)')}
+            for name, definition in {'run_key': "TEXT NOT NULL DEFAULT ''",
+                                     'usage_json': "TEXT NOT NULL DEFAULT '{}'",
+                                     'num_turns': 'INTEGER NOT NULL DEFAULT 0',
+                                     'total_cost_usd': 'REAL NOT NULL DEFAULT 0'}.items():
+                if name not in columns:
+                    c.execute(f'ALTER TABLE quota_ledger ADD COLUMN {name} {definition}')
+            c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_quota_run_key ON quota_ledger(run_key) WHERE run_key!=''")
 
     def put(self, snapshots):
         with self.db._connect() as c:
@@ -526,11 +534,12 @@ class QuotaStore:
         return [Snapshot(*[r[k] for k in ('account', 'window', 'used_percent', 'resets_at', 'source', 'observed_at', 'confidence')]) for r in rows]
 
     def record_run(self, *, role, provider, model='', account='', task_id=None, tokens=0, duration=0.0, success=False,
-                   limit_error=False, resets_at=None, ts=None):
+                   limit_error=False, resets_at=None, ts=None, run_key='', usage=None, num_turns=0, total_cost_usd=0):
         with self.db._connect() as c:
-            c.execute('INSERT INTO quota_ledger(ts,task_id,role,provider,model,account,tokens,duration,success,limit_error,resets_at)'
-                      ' VALUES(?,?,?,?,?,?,?,?,?,?,?)', (ts or time.time(), task_id, role, provider, model or '', account or '',
-                      int(tokens), float(duration), int(bool(success)), int(bool(limit_error)), resets_at))
+            c.execute('INSERT OR IGNORE INTO quota_ledger(ts,task_id,role,provider,model,account,tokens,duration,success,limit_error,resets_at,run_key,usage_json,num_turns,total_cost_usd)'
+                      ' VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', (ts or time.time(), task_id, role, provider, model or '', account or '',
+                      int(tokens), float(duration), int(bool(success)), int(bool(limit_error)), resets_at,
+                      run_key, json.dumps(usage or {}), int(num_turns or 0), float(total_cost_usd or 0)))
 
     def ledger(self, account=None, since=0.0, limit=50):
         with self.db._connect() as c:
@@ -842,8 +851,48 @@ def record_result(store, config, role, result, decision=None, task_id=None, cloc
             store.put([Snapshot(account, 'limit', 100.0, resets, 'limit_error', now, 'inferred')])
     store.record_run(role=role, provider=result.provider_name, model=data.get('model', '') or (decision.model if decision else ''),
                      account=account, task_id=task_id, tokens=usage_tokens(data.get('usage')), duration=result.duration_seconds,
-                     success=result.success, limit_error=bool(quota), resets_at=resets, ts=now)
+                     success=result.success, limit_error=bool(quota), resets_at=resets, ts=now,
+                     run_key=data.get('run_id', ''), usage=data.get('usage'),
+                     num_turns=data.get('num_turns', 0), total_cost_usd=data.get('total_cost_usd', 0))
     return {**quota, 'resets_at': resets, 'account': account} if quota and quota.get('exhausted') else None
+
+
+def persist_claude_run(database, result, *, task_id=None, agent_run_id=None, config=None):
+    """Persist local/controller/campaign Claude receipts without duplicate ledger rows.
+
+    run_id identifies an invocation, never a resumed native session. Replayed receipt
+    imports are idempotent; unrelated invocations sharing session_id remain distinct.
+    """
+    import uuid
+    from core.database import WorkspaceDatabase
+    db = WorkspaceDatabase(database)
+    data = result.structured_data
+    data.setdefault('run_id', uuid.uuid4().hex)
+    data.setdefault('quota_account', 'claude')
+    store = QuotaStore(db)
+    record_result(store, config or {}, result.role, result, task_id=int(task_id) if task_id else None)
+    with db._connect() as c:
+        c.execute('BEGIN IMMEDIATE')
+        run = c.execute('SELECT id FROM agent_runs WHERE id=?', (int(agent_run_id),)).fetchone() if agent_run_id else None
+        if agent_run_id and not run:
+            raise ValueError('Unknown controller agent_run_id')
+        if not run:
+            label = 'claude-invocation:' + data['run_id']
+            run = c.execute('SELECT id FROM agent_runs WHERE run_label=?', (label,)).fetchone()
+            if not run:
+                from core.models import utc_now_iso
+                cursor = c.execute('INSERT INTO agent_runs(task_id,role,provider_name,status,spawned_at,run_label) VALUES(?,?,?,?,?,?)',
+                    (int(task_id) if task_id else None, result.role, result.provider_name, 'RUNNING', utc_now_iso(), label))
+                run = (cursor.lastrowid,)
+        from core.models import utc_now_iso
+        status = 'BOUNDED' if data.get('budget_exhausted') else 'COMPLETED' if result.success else 'FAILED'
+        c.execute('''UPDATE agent_runs SET status=?,shutdown_at=?,duration_seconds=?,exit_code=?,
+            output_preview=?,error_text=?,session_id=?,usage_json=?,num_turns=?,total_cost_usd=?,cli_log_path=? WHERE id=?''',
+            (status, utc_now_iso(), result.duration_seconds, result.exit_code, result.output[:1000], result.error,
+             data.get('session_id', ''), json.dumps(data.get('usage', {})), int(data.get('num_turns') or 0),
+             float(data.get('total_cost_usd') or 0), result.log_file, run[0]))
+    data['usage_recorded'] = True
+    return run[0]
 
 
 def route_call(router, db, config, role, explicit=None, seen=None):

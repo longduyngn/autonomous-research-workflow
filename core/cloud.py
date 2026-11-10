@@ -150,6 +150,8 @@ class CloudTools:
             schema("notebook_select_hardware", "Set notebook hardware intent; does not allocate a machine", {**notebook, "hardware": string, "platform": {"enum": ["colab", "kaggle", "both"]}, "kaggle_kernel_slug": string}, ["notebook_path", "hardware"]),
             schema("local_execute_notebook", "Run in one persistent local Jupyter kernel; returns error on failed cells", {**notebook, "export_dir": string, "timeout_seconds": {"type": "integer"}}, ["notebook_path"]),
             schema("colab_tools", "Discover official Colab browser tools; schemas change after connecting", {}),
+            schema('colab_run_snippet', 'Run bounded code on an existing idle runtime; never allocate or switch hardware',
+                   {'code': string, 'hardware': string, 'timeout_seconds': {'type': 'integer'}}, ['code']),
             schema("colab_connect", "Open official Colab browser connection (auto-confirms via Coc Coc Playwright if CDP port 9222 is open; reuses active session if already connected)", {"force": {"type": "boolean"}}),
             schema("colab_call", "Call a tool from colab_tools or high-level workflow action (set_runtime, disconnect_runtime, run_notebook, read_live_output)", {"name": string, "arguments": {"type": "object"}}, ["name"]),
             schema("colab_release", "Close this task's browser bridge transport AFTER shutting down unused remote compute; pass force=true to close shared session", {"force": {"type": "boolean"}}),
@@ -480,6 +482,23 @@ class CloudTools:
 
     def colab_tools(self, args):
         return self._colab("/tools", {})
+
+    def colab_run_snippet(self, args):
+        # Reuse only explicit existing ownership. _colab must not claim a free VM
+        # or launch a new runtime to satisfy this convenience action.
+        ownership = self.path('.workflow/colab-ownership.json')
+        if not ownership.is_file():
+            raise PermissionError('Claim/reconcile existing Colab ownership before snippet execution')
+        from core.database import WorkspaceDatabase
+        database = self.controller / self.workflow_config.get('database_path', 'storage/events.db')
+        if database.is_file():
+            import sqlite3
+            with sqlite3.connect('file:' + database.as_posix() + '?mode=ro', uri=True) as c:
+                tables = {r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+                if 'experiment_jobs' in tables:
+                    if c.execute("SELECT 1 FROM experiment_jobs WHERE backend='colab' AND state NOT IN ('COMPLETED','FAILED') LIMIT 1").fetchone():
+                        raise PermissionError('Registered Colab job is running or unresolved; snippet refused')
+        return self._colab('/snippet', args, timeout=int(args.get('timeout_seconds', 300)) + 40)
 
     def colab_connect(self, args):
         args = args or {}

@@ -1,44 +1,104 @@
-import json, glob, os, re, sys, collections as C
-ROOT=os.path.expanduser('~/.claude/projects')
-SELF='96476bdd-6e20-4c63-8b29-06e0b5f884e5'
-files=[f for f in glob.glob(ROOT+'/**/*.jsonl',recursive=True) if SELF not in f]
-rows=[]; G=C.Counter(); reads=C.Counter(); readbytes=C.Counter(); bashp=C.Counter(); tools=C.Counter(); fulllog=C.Counter()
-for f in files:
-    msgs={}; ent=set(); model=C.Counter(); first=None; ts=[]
-    tl=C.Counter(); toolres=0
-    for line in open(f,encoding='utf-8',errors='replace'):
-        try: d=json.loads(line)
-        except: continue
-        if d.get('entrypoint'): ent.add(d['entrypoint'])
-        if d.get('timestamp'): ts.append(d['timestamp'])
-        m=d.get('message') or {}
-        if d.get('type')=='user' and first is None and isinstance(m.get('content'),str): first=m['content'][:90]
-        if d.get('type')=='user' and isinstance(m.get('content'),list):
-            for b in m['content']:
-                if isinstance(b,dict) and b.get('type')=='tool_result':
-                    c=b.get('content'); toolres+=len(json.dumps(c)) if c else 0
-        if d.get('type')!='assistant': continue
-        mid=m.get('id') or d.get('uuid')
-        u=m.get('usage') or {}
-        msgs[mid]=u; model[m.get('model')]+=1
-        for b in m.get('content') or []:
-            if isinstance(b,dict) and b.get('type')=='tool_use':
-                n=b['name']; i=b.get('input') or {}; tl[n]+=1; tools[n]+=1
-                if n=='Read':
-                    p=i.get('file_path','').replace(chr(92),'/'); k=re.sub(r'.*/(Antigravity_playgournd)/','',p,flags=re.I)
-                    reads[k]+=1
-                    if re.search(r'\.(log|jsonl)$',p) and not i.get('limit') and not i.get('offset'): fulllog[k]+=1
-                if n in('Bash','PowerShell'):
-                    cmd=(i.get('command') or '').strip()
-                    first_tok=' '.join(cmd.split()[:2])[:40]
-                    bashp[first_tok]+=1
-    if not msgs: continue
-    s=dict(inp=0,cc=0,cr=0,out=0)
-    for u in msgs.values():
-        s['inp']+=u.get('input_tokens',0) or 0; s['cc']+=u.get('cache_creation_input_tokens',0) or 0
-        s['cr']+=u.get('cache_read_input_tokens',0) or 0; s['out']+=u.get('output_tokens',0) or 0
-    peak=max(((u.get('input_tokens',0) or 0)+(u.get('cache_creation_input_tokens',0) or 0)+(u.get('cache_read_input_tokens',0) or 0)) for u in msgs.values())
-    proj=os.path.basename(os.path.dirname(f)) if 'subagents' not in f else 'subagent:'+os.path.basename(os.path.dirname(os.path.dirname(f)))
-    rows.append(dict(sid=os.path.basename(f)[:8],proj=proj.replace('D--Antigravity-playgournd','REPO'),ent=','.join(sorted(ent)),model=model.most_common(1)[0][0],turns=len(msgs),peak=peak,toolres=toolres,start=min(ts)[:16] if ts else '',tools=tl,first=first,**s))
-    for k in s: G[k]+=s[k]
-json.dump(dict(rows=[{**r,'tools':dict(r['tools'])} for r in rows],G=G,reads=reads.most_common(25),bash=bashp.most_common(25),tools=tools.most_common(25),fulllog=fulllog.most_common(10)),open(sys.argv[1],'w'),indent=1,default=str)
+"""Offline Claude transcript audit. No model calls; explicit scope and exclusions."""
+import argparse
+import collections
+import json
+import re
+from datetime import datetime, timezone
+from pathlib import Path
+
+FIELDS = {'inp':'input_tokens','cc':'cache_creation_input_tokens',
+          'cr':'cache_read_input_tokens','out':'output_tokens'}
+
+
+def audit(root, exclude_sessions=()):
+    sessions = {}
+    files = sorted(Path(root).rglob('*.jsonl'))
+    excluded, malformed = [], 0
+    for path in files:
+        if any(value in path.stem for value in exclude_sessions):
+            excluded.append(str(path))
+            continue
+        row = sessions.setdefault(path.stem, {'messages':{},'tools':{},'entrypoints':set(),'times':[], 'models':collections.Counter()})
+        with path.open(encoding='utf-8',errors='replace') as stream:
+            for line in stream:
+                try:
+                    data = json.loads(line)
+                except ValueError:
+                    malformed += 1
+                    continue
+                if not isinstance(data,dict):
+                    continue
+                if data.get('entrypoint'):
+                    row['entrypoints'].add(data['entrypoint'])
+                if data.get('timestamp'):
+                    row['times'].append(data['timestamp'])
+                message = data.get('message') or {}
+                if data.get('type')!='assistant' or not isinstance(message,dict):
+                    continue
+                mid = message.get('id') or data.get('uuid')
+                if not mid:
+                    continue
+                usage = message.get('usage') or {}
+                old = row['messages'].setdefault(mid,{})
+                # Split/duplicate assistant fragments share an ID. Counters can
+                # arrive progressively; use each field's maximum, never sum them.
+                for name in FIELDS.values():
+                    value = usage.get(name)
+                    if isinstance(value,(int,float)) and value >= 0:
+                        old[name] = max(old.get(name,0),int(value))
+                if message.get('model'):
+                    row['models'][message['model']]+=1
+                content = message.get('content') or []
+                if isinstance(content,list):
+                    for index,block in enumerate(content):
+                        if isinstance(block,dict) and block.get('type')=='tool_use':
+                            row['tools'][block.get('id') or (mid,str(index))] = block
+    total, tool_total, reads, full_logs, commands = [collections.Counter() for _ in range(5)]
+    rows = []
+    for sid,row in sessions.items():
+        if not row['messages']:
+            continue
+        values={short:sum(u.get(long,0) for u in row['messages'].values()) for short,long in FIELDS.items()}
+        tools = collections.Counter()
+        hashes = 0
+        for block in row['tools'].values():
+            name,arguments = block.get('name',''),block.get('input') or {}
+            tools[name]+=1
+            if name=='Read':
+                path=arguments.get('file_path','').replace('\\','/')
+                path=re.sub(r'^.*?/Antigravity_playgournd/','',path,flags=re.I)
+                reads[path]+=1
+                if re.search(r'\.(log|jsonl)$',path) and not arguments.get('limit') and not arguments.get('offset'):
+                    full_logs[path]+=1
+            if name in {'Bash','PowerShell'}:
+                command=arguments.get('command') or ''
+                hashes+=command.lower().count('get-filehash')
+                # Raw commands and prompts are not exported by the audit.
+                commands['Get-FileHash' if 'get-filehash' in command.lower() else 'other']+=1
+        peak=max(sum(u.get(k,0) for k in ('input_tokens','cache_creation_input_tokens','cache_read_input_tokens'))
+                 for u in row['messages'].values())
+        rows.append({'sid':sid[:8],'session_id':sid,'ent':','.join(sorted(row['entrypoints'])),
+            'model':row['models'].most_common(1)[0][0] if row['models'] else '',
+            'turns':len(row['messages']),'peak':peak,'tools':dict(tools),'get_filehash':hashes,
+            'start':min(row['times']) if row['times'] else '',**values})
+        total.update(values)
+        tool_total.update(tools)
+    return {'rows':rows,'G':dict(total),'reads':reads.most_common(50),'bash':commands.most_common(),
+            'tools':tool_total.most_common(),'fulllog':full_logs.most_common(25),
+            'scope':{'root':str(Path(root).resolve()),'files':len(files),'excluded_files':excluded,
+                     'exclude_sessions':list(exclude_sessions),'malformed_lines':malformed,
+                     'captured_at':datetime.now(timezone.utc).isoformat(),
+                     'dedup':'message id per native session; max counters across fragments; unique tool id',
+                     'tokens':'inp+cc+out excludes cache read; processed total also includes cr; neither is quota percent or billed cost'}}
+
+
+def main():
+    p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument('out')
+    p.add_argument('--root',default=str(Path.home()/'.claude/projects'))
+    p.add_argument('--exclude-session',action='append',default=[])
+    a=p.parse_args()
+    Path(a.out).write_text(json.dumps(audit(a.root,a.exclude_session),indent=2,ensure_ascii=False),encoding='utf-8')
+
+
+if __name__=='__main__':main()

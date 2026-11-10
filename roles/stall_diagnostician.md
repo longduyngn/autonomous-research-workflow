@@ -10,3 +10,6 @@ than proof of a dead job. Do not invent GPU/process observations.
 Return exactly one JSON object with assessment HEALTHY, SLOW, STALLED or UNKNOWN,
 reason citing the observations, and a safe recommendation. Never execute a
 repair, cancel/restart compute, weaken scientific scope, or send Discord messages.
+
+
+For *.log/*.jsonl, use tail_log/search_log (native CLI: scripts/logs.py) or Read with limit/offset. Do not read entire logs. Read status_digest once per session; inspect changed evidence. Do not reread SKILL.md already in context.

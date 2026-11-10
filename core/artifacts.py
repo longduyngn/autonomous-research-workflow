@@ -29,7 +29,7 @@ def register(root, name, path, metadata=None):
         record['metadata'] = metadata
     receipt = AgentTools(root, 'operator').path('.workflow/artifact-receipts.jsonl')
     receipt.parent.mkdir(parents=True, exist_ok=True)
-    with RoleMemory(root, 'artifact-receipts').locked():
+    with RoleMemory(AgentTools(root, 'operator').path('.workflow/artifact-lock'), 'operator').locked():
         with receipt.open('a', encoding='utf-8') as stream:
             stream.write(json.dumps(record, ensure_ascii=False) + '\n')
     return record

@@ -1,4 +1,12 @@
-# Kết quả đến gate review — chưa áp dụng vào hệ thống chính
+# Kết quả P0/P1/P2 — P1 đã tích hợp, checkpoint bốn file đã review PASS (phạm vi hẹp)
+
+Hướng dẫn ngắn: [vai trò, workflow và cách đọc usage](USAGE_WORKFLOW_SIMPLE_VI.md).
+
+Số liệu của chính các lượt review/Claude tiếp nối: [CLOSURE_USAGE_VI.md](CLOSURE_USAGE_VI.md). Biên nhận kiểm chứng cuối của host: [FINAL_VERIFICATION.json](../../storage/ralph-p1-20261109/implementation/FINAL_VERIFICATION.json).
+
+15 file P1 đã áp dụng sau AGY R6 PASS. Full suite tại phiên bản đã áp dụng: **326/326 PASS**, cutoff 09/11/2026 16:06:02 UTC. Đây là kết quả lịch sử, không phải full suite của source hiện tại. Bốn file cập nhật sau đó đã có **13/13 kiểm tra cục bộ PASS**. Review R7 lần 1 và lần 2 trả **NEEDS_EVIDENCE** (lần 1 thiếu biên nhận 13 test; lần 2 do hook/ranh giới phiên, không phải finding code) và được giữ nguyên làm lịch sử.
+
+**Kết quả thực tế (cập nhật 10/11/2026): R7-four-checkpoint-review3 = PASS, không finding; finalizer đã chạy và trả `P1_FROZEN_CHECKPOINT_REVIEWED_AND_VERIFIED`.** [Phụ lục receipt-only](../../storage/ralph-p1-20261109/validation/prepared/R7_FOUR_RECEIPTS_SUPPLEMENT.md) (SHA256 `df7ccd19…ca00`) được gửi một lần tới AGY `gemini-3.8-flash-medium` (resume phiên `c192d78b…`, COMPLETED, exit 0, 33,5 giây). Xem [receipt](../../storage/ralph-p1-20261109/validation/R7-four-checkpoint-review3/receipt.json) và [verdict](../../storage/ralph-p1-20261109/validation/R7-four-checkpoint-review3/verdict.json). Phạm vi: bốn file đóng băng (orchestrator `fc781b48`, tools `a54ec021`, operator.md `5ee8994c`, researcher.md `3330abbc`) cùng hai backend đã capture, 13 test cục bộ; finalizer không thấy drift. Hash đã áp dụng (R6), hash đã review/đóng băng và hash quan sát được ghi riêng trong [CLOSURE_FOUR-freeze.json](../../storage/ralph-p1-20261109/implementation/CLOSURE_FOUR-freeze.json). Full326 vẫn là kết quả lịch sử, không gắn nhãn lại thành full suite hiện tại. Phone/live **NOT_RUN**; **không có global current-tree signoff**.
 
 ## “Hết quota lúc đang làm gì?”
 
@@ -27,69 +35,33 @@ QUOTA_INCIDENTS.json/.csv.
 
 ## “Cho communicator persist và giao task thay tôi”
 
-Codex Sol đã chuẩn bị patch: communicator trả intent trong một lượt gọi; controller
-kiểm actor/scope/task và lưu yêu cầu gốc trước khi submit/feedback. Có durable
-dedup và xử lý restart, hỏi lại khi mơ hồ, từ chối proposal lỗi, đọc log task theo
-yêu cầu có giới hạn/redaction. Log đầy đủ không đi vào mọi lượt chat.
+Communicator tạo intent; controller kiểm danh tính inbox, scope và task trước khi lưu/submit/feedback. Yêu cầu gốc được giữ cùng intent chuẩn hóa. Durable claim chống tạo task trùng sau restart; actor/scope do model đề xuất không thay thế danh tính đã xác thực. Task terminal không nhận feedback làm thay đổi lịch sử; retry mới phải rõ ràng.
 
-Persistence giúp hiểu ý; DB claim vẫn ngăn cùng event tạo hai task. Không trao
-shell/quyền duyệt hành động tùy ý cho communicator. R1 focused: 33 tests pass.
+Log task chỉ được đọc khi có yêu cầu hoặc task đã chọn: nguồn cho phép, giới hạn dòng/ký tự, redaction và nhãn nguồn/thời điểm. Không cấp shell hay đường dẫn tùy ý. Điện thoại/Discord thật: **NOT_RUN**.
 
 ## “Watcher tự xử lý thay vì dừng và báo tôi”
 
-Ứng viên R2 dùng watcher code; sau check-in, giao thẳng researcher sở hữu task,
-không mặc định thêm một AI watcher rồi mới thêm researcher. Mỗi đợt lỗi có ID,
-owner, giới hạn và bằng chứng kiểm lại. Telemetry thiếu không thành job FAILED;
-UNKNOWN chỉ được đối chiếu read-only; confirmed FAILED dùng đường sửa/checkpoint
-có sẵn. Quota chờ theo router hiện có, không đốt experiment retry. Phản hồi cũ bị
-chặn khi tiến độ/task đã đổi. Một job lỗi không được làm dừng theo dõi job khác.
+Watcher dùng episode bền vững, một owner và số lần sửa có giới hạn; giao trực tiếp researcher/operator tại ranh giới vai trò. UNKNOWN chỉ đối chiếu read-only, không replay job. Quota chờ router hiện có; heartbeat/log chatter không tự gọi thêm model. Kết quả sửa cũ bị chặn khi task có tiến độ/trạng thái mới. Lỗi một job không dừng theo dõi các job khác.
 
-Đã sửa trong ứng viên việc hook không nhận tham số Path của tool AGY thật. Hook
-và API path có tests giới hạn đọc. Watcher vẫn nằm trong controller: nếu cả máy
-hoặc controller chết thì cần cơ chế restart ngoài process; đợt này không cài dịch vụ.
+Watcher nằm trong process controller. Nếu cả controller/máy chết, cần cơ chế restart bên ngoài; đợt này không cài dịch vụ hay restart listener.
 
-R2 focused: 120 tests pass. Bản ghép R1+R2: 68 focused pass; full suite 303/304
-pass, lỗi duy nhất là Bash/WSL E_ACCESSDENIED đã tái hiện trên baseline gốc. Không
-skip/sửa để che lỗi. Doctor --no-env exit 0. Chưa test điện thoại/Discord thật.
+| Mục | Tiêu chí acceptance | Bằng chứng / giới hạn |
+|---|---|---|
+| P0 | Đối chiếu mốc quota với phiên và việc đang làm | Source audit; không suy quota/cost tài khoản |
+| P1 | Duplicate event, kể cả restart → 1 task | Fixture-tested |
+| P1 | Actor/scope sai → 0 mutation | Fixture-tested |
+| P1 | UNKNOWN → read-only, không replay | Fixture-tested |
+| P1 | Incident lặp → một recovery owner, bounded attempts | Fixture-tested |
+| P1 | Quota → chờ router hiện có | Fixture-tested |
+| P1 | Recovery cũ bị fenced sau tiến độ mới | Fixture-tested |
+| P1 | Log bounded/redacted, không path escape | Fixture-tested; 13 kiểm tra checkpoint mới PASS |
+| P2 | Dedup response, schema/counter reset, tách UNKNOWN | 13 fixture tests; AGY R3 review2 PASS |
+| P1/P2 | Phone/live acceptance | **NOT_RUN**; không suy từ fixture |
+
+Các receipt 32 và 68 targeted PASS được giữ riêng, có phần coverage trùng; không cộng thành full suite. Lỗi Bash/WSL cũ và các lần kiểm tra thất bại vẫn được giữ. Full326 đã dùng Git Bash trong môi trường process con, không skip test.
 
 ## “P2 thống kê lại thế nào?”
 
-Đã có tool offline có 13 fixture tests và kết quả tái chạy ổn định. AGY review lần
-đầu FAIL; Codex sửa đủ 5 findings, thêm 7 regression tests; AGY review lần hai PASS:
+Tool offline tách task/run/role/phase/provider/model, dedup response/message, xử lý schema Claude/Codex, counter epoch/cutoff và UNKNOWN. Review1 FAIL có 5 findings; bản sửa đã được AGY R3-scoped-review2 PASS. Không cộng ledger totals lên response totals; cache-read và cache-create giữ riêng theo schema, reasoning là phần con của output thì không cộng lần hai. Thiếu dữ liệu vẫn là UNKNOWN.
 
-```powershell
-python storage/ralph-p1-20261109/audit/tools/investigate_smile.py
-python storage/ralph-p1-20261109/audit/tools/usage_report.py --manifest storage/ralph-p1-20261109/audit/PINNED_USAGE_MANIFEST.json --out storage/ralph-p1-20261109/audit/usage
-```
-
-Nó tách task/run/role/phase/provider/model, dedup response/message, phân biệt
-schema Claude/Codex, counter epoch/cutoff và UNKNOWN. Không cộng ledger run totals
-lên response totals. Kế hoạch producer instrumentation tương lai ở audit/P2_USAGE_PLAN.md;
-chưa tuyên bố đã có phân bổ token chính xác theo mọi loại nội dung trong production.
-
-## Trạng thái sau khi người dùng cấp quyền AGY
-
-Người dùng đã cấp quyền: “cho phép agy truy cập tiến hành task”. Gói đã lọc được
-gửi theo phạm vi đó. AGY R4-scoped-review1 PASS cho R1/R2/INTEGRATION; AGY
-R3-scoped-review2 PASS cho tool thống kê sau khi sửa 5 findings. Không hỏi lại quyền
-cũ. Patch và bản ghép nằm trong storage/ralph-p1-20261109/.
-
-Automatic approval từ chối gửi bundle source/tests/receipt đầy đủ cho AGY vì phạm
-vi dữ liệu được gửi chưa đủ cụ thể. Đã chuẩn bị gói hẹp hơn tại validation/prepared:
-R4_FILTERED_REVIEW.md (diff R1/R2 + test mới + tóm tắt test) và R3_FILTERED_REVIEW.md
-(tool/test mới). Không gồm raw chat/reasoning, credential/.env, dữ liệu nghiên cứu,
-log nguyên bản, native session/account metadata hay unchanged full source files.
-Lần từ chối trước được giữ làm bằng chứng lịch sử; không phải blocker hiện tại.
-
-Codex đang tích hợp theo allowlist/hash của 15 file P1 và giữ nguyên sáu file quota
-người dùng đã cập nhật đồng thời. Cấu hình quota mới có Claude model probe thật,
-Codex app-server và AGY readiness probe; các fixture CLI cũ cần tách khỏi mặc định
-này để unit tests không tự gọi provider. Một lượt test isolated chưa chặn probe
-đã được dừng, receipt giữ nguyên, usage của probe UNKNOWN khi không có biên nhận.
-Harness mới fail-closed với native provider và không bỏ test. Sửa fixture test
-được tách review riêng trước khi áp dụng. Chưa có deploy, GPU, Discord hay restart
-listener. Kết quả production integration cuối cùng sẽ ghi trong STATUS.json.
-
-Lưu ý P2: quota_probe là một nhóm usage riêng vì probe Claude mới thực hiện lời
-gọi model. Không mặc định việc đo quota là miễn token và không gán thay đổi mới
-này làm nguyên nhân các mốc hết quota trong campaign cũ.
+Producer telemetry mới (ledger/agent_runs) của chủ sở hữu khác là phạm vi riêng: [bàn giao kiểm chứng quota optimization](QUOTA_OPTIMIZATION_VERIFICATION_20261110.md). Chủ sở hữu báo full354 PASS cho task đó; không đổi nhãn thành suite P1. Kế hoạch/importer offline tại `storage/ralph-p1-20261109/audit/P2_USAGE_PLAN.md` giữ cutoff riêng. Chưa có A/B hoặc phép tính quota phần trăm/chi phí đáng tin cậy. `quota_probe` là usage category riêng; probe đã dừng trong lần test cũ có usage/cost **UNKNOWN** khi thiếu receipt, không phải zero.

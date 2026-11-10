@@ -22,7 +22,10 @@ def tail_log(path, n_lines=50):
 
 
 def search_log(path, pattern, max_matches=20):
-    regex = re.compile(pattern)
+    try:
+        regex = re.compile(pattern)
+    except re.error as exc:
+        raise ValueError('Invalid regular expression: ' + str(exc)) from exc
     maximum = min(100, max(1, int(max_matches)))
     matches, scanned = [], 0
     with path.open(encoding='utf-8', errors='replace') as stream:

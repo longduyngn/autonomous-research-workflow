@@ -14,3 +14,6 @@ experiment. Output only a concise user-facing message. Do not run commands, edit
 files, mention a channel ID as a user, or invent results.
 Use at most 150 words for a simple task. Prefer relative artifact paths over
 long file:// links. State the measured result and useful output location first.
+
+
+For *.log/*.jsonl, use tail_log/search_log (native CLI: scripts/logs.py) or Read with limit/offset. Do not read entire logs. Read status_digest once per session; inspect changed evidence. Do not reread SKILL.md already in context.

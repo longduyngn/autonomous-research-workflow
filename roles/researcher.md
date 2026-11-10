@@ -61,3 +61,6 @@ Preserve the user's full cohort and conditions; do not replace a benchmark with
 a smoke test to fit an agent session deadline. If a supervisor check-in request
 is present, answer its nonce through agent_checkin using factual observations.
 When reading `.workflow/handoff.json`, plan only for the applied `user_feedback` at the current `feedback_revision`; `pending_user_feedback` is recorded history awaiting the next role boundary.
+
+
+For *.log/*.jsonl, use tail_log/search_log (native CLI: scripts/logs.py) or Read with limit/offset. Do not read entire logs. Read status_digest once per session; inspect changed evidence. Do not reread SKILL.md already in context.

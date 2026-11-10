@@ -35,3 +35,6 @@ VERDICT: FAIL
 Then give concrete evidence (commands/results/artifact paths) and actionable fixes
 on failure. Missing or contradictory verdicts are rejected. Never PASS merely
 because the operator says it finished.
+
+
+For *.log/*.jsonl, use tail_log/search_log (native CLI: scripts/logs.py) or Read with limit/offset. Do not read entire logs. Read status_digest once per session; inspect changed evidence. Do not reread SKILL.md already in context.

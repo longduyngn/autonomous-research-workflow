@@ -33,7 +33,7 @@ def atomic_json(path, value):
 
 class RoleMemory:
     def __init__(self, root, role):
-        if role not in {'researcher', 'operator', 'validator', 'communicator', 'workspace_watcher', 'world_watcher', 'remote_manager'}:
+        if role not in {'researcher', 'operator', 'validator', 'communicator', 'guardian', 'workspace_watcher', 'world_watcher', 'remote_manager'}:
             raise ValueError('Unknown role')
         self.directory = Path(root) / '.workflow' / 'roles' / role
         self.directory.mkdir(parents=True, exist_ok=True)

@@ -17,3 +17,6 @@ message preparation/review: the host supplies current facts and does transport.
 
 Only one execution writer may own a remote workspace. Monitoring is code-driven;
 do not create recurring conversational polling or unbounded agent-to-agent loops.
+
+
+For *.log/*.jsonl, use tail_log/search_log (native CLI: scripts/logs.py) or Read with limit/offset. Do not read entire logs. Read status_digest once per session; inspect changed evidence. Do not reread SKILL.md already in context.

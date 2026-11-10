@@ -69,3 +69,6 @@ periodically and at milestones. Include optimizer/scheduler/scaler if applicable
 RNG state, step/data cursor and code/data/config hashes. Test a short resume first.
 If no durable destination is configured, report that limitation; do not call a
 checkpoint on /content durable or automatically mount/login/publish user storage.
+
+
+For *.log/*.jsonl, use tail_log/search_log (native CLI: scripts/logs.py) or Read with limit/offset. Do not read entire logs. Read status_digest once per session; inspect changed evidence. Do not reread SKILL.md already in context.

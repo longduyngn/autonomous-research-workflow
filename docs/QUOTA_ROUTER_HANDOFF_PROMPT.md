@@ -1,4 +1,4 @@
-# Handoff prompt: finish the quota router (for GPT/Codex and Gemini/AGY)
+e# Handoff prompt: finish the quota router (for GPT/Codex and Gemini/AGY)
 
 Copy the common block plus your own section. Both agents work in the same checkout;
 GPT owns Codex/Claude-adapter items, Gemini owns AGY items. Do not edit each

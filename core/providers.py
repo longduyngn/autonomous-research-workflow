@@ -165,8 +165,21 @@ class EphemeralAgentRunner:
         except Exception as exc:
             result = AgentRunResult(role, name, False, "", exit_code=1, error=str(exc))
         result.duration_seconds = time.monotonic() - started
-        # Passive quota is saved in _run_cli. Optional broader usage telemetry
-        # must not depend on an unfinished persist_claude_run integration here.
+        if provider.get('type') == 'claude_cli':
+            from core.quota import persist_claude_run
+            context = getattr(self, 'control_environment', {})
+            database = context.get('WORKFLOW_DB_PATH') or self.config.get('database_path')
+            if database:
+                database = Path(database)
+                if not database.is_absolute():
+                    database = self.instructions_root / database
+                result.log_file = str(cli_log_path) if cli_log_path else None
+                try:
+                    persist_claude_run(database, result, task_id=context.get('WORKFLOW_TASK_ID'),
+                        agent_run_id=context.get('WORKFLOW_AGENT_RUN_ID'), config=self.config)
+                except Exception as exc:
+                    # Never replay tool side effects because telemetry failed.
+                    result.structured_data['telemetry_error'] = str(exc)
         if cli_log_path:
             result.log_file = str(cli_log_path)
             log = Path(cli_log_path)
@@ -281,7 +294,7 @@ class EphemeralAgentRunner:
             if session:
                 cmd += ['--resume', session]
             # Explicit tool permissions avoid headless approval deadlocks.
-            allowed_tools = ('Read,Glob,Grep' if role == 'communicator' else
+            allowed_tools = ('Read,Glob,Grep' if role in {'communicator', 'guardian'} else
                              'Read,Glob,Grep,WebFetch,WebSearch' +
                              (',Edit,Write,Bash' if writable else ',Bash' if role == 'validator' else ''))
             cmd += ['--tools', allowed_tools, '--allowedTools', allowed_tools]
@@ -398,6 +411,7 @@ class EphemeralAgentRunner:
                     if kind == 'claude_cli':
                         evidence.update(num_turns=native.get('num_turns', 0),
                                         total_cost_usd=native.get('total_cost_usd', 0),
+                                        model_usage=native.get('modelUsage', {}),
                                         stop_reason=native.get('subtype', ''))
                         if (native.get('num_turns') or 0) > evidence['turn_budget']:
                             evidence['turn_budget_exceeded'] = True
@@ -489,6 +503,9 @@ class EphemeralAgentRunner:
         # A CLI which never authenticated cannot reach hooks. Report its actual
         # startup failure before secondary missing-hook symptoms.
         success = result["exit_code"] == 0 and bool(out.strip()) and not hook_error and not cli_error
+        if evidence.get('budget_exhausted') and (hook_error or result['exit_code']):
+            # Permission/hook failures take precedence over a bounded stop.
+            evidence.pop('budget_exhausted', None)
         if evidence.get('budget_exhausted'):
             from core.role_memory import atomic_json
             handoff = self.workspace_root / '.workflow' / (log.stem + '.budget-handoff.json')
