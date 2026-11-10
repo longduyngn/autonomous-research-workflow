@@ -528,5 +528,22 @@
     "max_agent_seconds": 0,
     "max_diagnostics_per_job": 2,
     "project": "antigravity-research"
+  },
+  "storage": {
+    "store": "rclone",
+    "remote": "gdrive",
+    "base": "workflow-runs",
+    "root_folder_id": "",
+    "colab_mount_path": "/content/drive/MyDrive/workflow-runs",
+    "keep_checkpoints": 3,
+    "local_results_dir": "storage/results",
+    "light_max_bytes": 52428800,
+    "hf_export": {
+      "enabled": false,
+      "repo_id": "",
+      "private": true,
+      "token_env": "HF_TOKEN"
+    },
+    "description": "Shared off-machine store for checkpoints/heavy artifacts (D7). Drive via rclone; local gets light files + manifest only."
   }
 }

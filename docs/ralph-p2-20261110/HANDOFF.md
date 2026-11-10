@@ -25,17 +25,16 @@
 - Done also: P2.4-01 (standard result contract), P2.4-02 (boundary failover + handoff), P2.4-03 (independent validator).
 - Done also: P2.4-04 (CLI pins + throttled smoke). P2.4 complete.
 - Done also: P2.6-02 (no default time budgets).
-- Done also: P2.5-01 (job contract + journal).
-- Next: P2.5-02 manifest, P2.5-03 Drive/rclone (live gate:
-  user must install rclone + `rclone config` remote `gdrive`), P2.5-04 Colab, P2.5-05 Kaggle, P2.5-06 poller,
+- Done also: P2.5-01 (job contract + journal), P2.5-02 (manifest/store), P2.5-03 (Drive live publish/restore PASS).
+- Next: P2.5-04 Colab, P2.5-05 Kaggle, P2.5-06 poller,
   P2.5-07 light outputs, P2.5-08 cross-backend resume, P2.5-09 HF optional.
 - The scheduled autopilot task is NOT installed (blocked by the session permission classifier); the user
   can install it with `python scripts/p2_autopilot.py install`.
 
 ## Known live gates (need the user)
 
-- rclone not installed / remote `gdrive` not configured (needed before P2.5-03 live). Folder ID recorded in
-  USER_DECISIONS_VI.md.
+- rclone + `gdrive:` configured by the user (P2.5-03 live PASS). Colab mount path of the shared folder (name under
+  MyDrive) still to confirm for Colab interop.
 - Kaggle secrets for rclone token (P2.5-03/P2.7-02 live).
 
 ## Open risks
