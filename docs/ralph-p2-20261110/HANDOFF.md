@@ -23,8 +23,10 @@
 - Done also: P2.6-01 (optional plan approval per task).
 - Done also: P2.3 (pinned AGY roles + no-LLM answers).
 - Done also: P2.4-01 (standard result contract), P2.4-02 (boundary failover + handoff), P2.4-03 (independent validator).
-- Next: P2.4-04 CLI pins
-  + scheduled smoke probes; then P2.6-02 remove default time budgets (D6).
+- Done also: P2.4-04 (CLI pins + throttled smoke). P2.4 complete.
+- Next: P2.6-02 remove default task/job/agent time budgets (D6) — fake-clock tests at 6/10/12/24h; keep op timeouts,
+  leases, heartbeats; user budgets only when stated. Then P2.5 compute (job adapter, manifest, Drive, Colab, Kaggle,
+  poller, light outputs, cross-backend resume, HF optional).
 - The scheduled autopilot task is NOT installed (blocked by the session permission classifier); the user
   can install it with `python scripts/p2_autopilot.py install`.
 

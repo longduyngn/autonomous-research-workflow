@@ -34,6 +34,11 @@ def inspect_environment(root, config):
         "discord_allowed_users_configured": bool(os.environ.get("DISCORD_ALLOWED_USER_IDS"))}
     from pathlib import Path
     report["agent_runtimes"] = {name: find_executable(name) for name in ("codex", "agy", "claude", "opencode")}
+    try:
+        from core.provider_versions import drift_report
+        report["cli_version_pins"] = drift_report()  # `--version` only; no model call
+    except Exception as exc:
+        report["cli_version_pins"] = {"error": type(exc).__name__}
     report["provider_capabilities"] = {"codex_cli": "native hooks + final-answer file + JSON events",
         "agy_cli": "native hooks + text transcript", "claude_cli": "native hooks + stream-json final result and passive quota",
         "opencode_cli": "JSON events + named provider sessions; controller observation (no native workflow hooks)",
