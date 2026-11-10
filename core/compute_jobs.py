@@ -181,6 +181,11 @@ class JobController:
         record = {k: v for k, v in observation.items()
                   if k in ('completed', 'total', 'metrics', 'stage', 'heartbeat_at') and v not in (None, '')}
         record['state'] = mapped
+        if isinstance(record.get('metrics'), dict):
+            import math
+            # The store keeps finite numbers only; the caller still sees the raw observation (e.g. NaN loss).
+            record['metrics'] = {k: v for k, v in record['metrics'].items()
+                                 if isinstance(v, (int, float)) and math.isfinite(v)}
         job = self.store.get(handle.job_id)
         record.setdefault('completed', job['completed'])
         self.store.observe(handle.job_id, record, handle.backend)
