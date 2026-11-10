@@ -39,5 +39,9 @@ Thay thế đề xuất của planner (`claude-sonnet-5-5-medium`, `claude-opus-
 
 - Remote rclone tên `gdrive`; thư mục kho chung do người dùng tạo và báo tên/ID (không phải credential).
 - Colab dùng `/content/drive/MyDrive/<thư mục>`; rclone dùng `gdrive:<thư mục>` hoặc `root_folder_id`.
-- Scope OAuth: chờ người dùng chọn (`drive` để tương thích hoàn toàn với `drive.mount`,
-  hoặc `drive.file` an toàn hơn nhưng có thể không thấy file Colab ghi).
+- Scope OAuth: **`drive`** (người dùng chọn 2026-11-11) để tương thích hoàn toàn với `drive.mount`.
+- Thư mục kho chung: folder ID **`1MbxfEz_tOOUknq-M5A0ELe4hMWzOUv-_`** (đặt làm `root_folder_id`
+  của remote `gdrive`). Trên Colab cần xác định đường dẫn tương ứng dưới `/content/drive/MyDrive/`
+  bằng tên thư mục, kiểm tra qua probe publish/restore.
+- Trạng thái 2026-11-11: `OPENROUTER_API_KEY` đã có trong `.env` (chỉ kiểm tra tồn tại);
+  rclone chưa cài, remote `gdrive` chưa cấu hình.
