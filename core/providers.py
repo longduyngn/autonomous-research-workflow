@@ -36,6 +36,35 @@ def claude_stream_result(lines):
     return final
 
 
+class ModelHTTPError(RuntimeError):
+    """HTTP failure from a model endpoint with allow-listed fields only (no raw body)."""
+
+    def __init__(self, status, retry_after=None, safe_message=''):
+        self.status, self.retry_after, self.safe_message = status, retry_after, safe_message
+        self.error_class = _opencode_error_class(status, safe_message)
+        super().__init__(f'Model endpoint HTTP {status}' + (f': {safe_message}' if safe_message else ''))
+
+    @classmethod
+    def from_http_error(cls, exc):
+        retry = None
+        try:
+            header = exc.headers.get('Retry-After') if exc.headers else None
+            retry = float(header) if header is not None else None
+        except (TypeError, ValueError, AttributeError):
+            retry = None
+        message = ''
+        try:
+            body = json.loads(exc.read().decode('utf-8', errors='replace') or '{}')
+            error = body.get('error') if isinstance(body, dict) else None
+            if isinstance(error, dict):
+                message = str(error.get('message') or '')[:200]
+            elif isinstance(error, str):
+                message = error[:200]
+        except Exception:
+            message = ''
+        return cls(exc.code, retry, message)
+
+
 def _opencode_error_class(status, message):
     text = (message or '').lower()
     if status == 429 or 'rate limit' in text or 'rate-limit' in text:
@@ -708,8 +737,7 @@ class EphemeralAgentRunner:
             with urllib.request.urlopen(req, timeout=max(1, timeout)) as response:
                 return json.loads(response.read().decode())
         except urllib.error.HTTPError as exc:
-            # Response bodies may contain credentials or request echoes; don't log them.
-            raise RuntimeError(f"Model endpoint HTTP {exc.code}") from None
+            raise ModelHTTPError.from_http_error(exc) from None
 
     def _run_http(self, role, name, provider, cfg, instructions, prompt, timeout, log, model_override=None):
         from core.tools import AgentTools
@@ -754,13 +782,31 @@ class EphemeralAgentRunner:
                     payload["provider"]["max_price"] = {"prompt": 0, "completion": 0}
             try:
                 data = self._post(provider["base_url"], payload, headers, remaining)
-            except urllib.error.HTTPError as exc:
-                if exc.code==429 and turn==0 and not trace:
-                    try: delay=max(15,min(3600,int(exc.headers.get('Retry-After','60'))))
-                    except (ValueError,TypeError,AttributeError): delay=60
-                    return AgentRunResult(role,name,False,'',error='Provider rate limited before any tool call',
-                        structured_data={'retry_safe':True,'retry_after':delay})
-                raise  # A later failure can follow side effects; do not automatically replay it.
+            except ModelHTTPError as exc:
+                if exc.status not in (402, 429):
+                    raise  # A later failure can follow side effects; do not automatically replay it.
+                from core.quota import account_for
+                account = account_for(provider, model) or ''
+                delay = exc.retry_after if exc.retry_after is not None else 60.0
+                data = {'tokens': token_total, 'tool_trace': trace, 'model': model, 'quota_account': account,
+                        'http_status': exc.status, 'error_class': exc.error_class}
+                if exc.error_class == 'QUOTA_EXHAUSTED':
+                    data['quota'] = {'exhausted': True, 'matched': exc.safe_message[:80], 'account': account,
+                                     'resets_at': time.time() + delay, 'provider': name, 'model': model}
+                if not trace:
+                    # Nothing ran yet: replay is safe after the advertised delay.
+                    data.update(retry_safe=True, retry_after=max(15, min(3600, int(delay))))
+                    return AgentRunResult(role, name, False, '', error='Provider rate limited before any tool call'
+                                          if exc.status == 429 else 'Provider quota exhausted before any tool call',
+                                          structured_data=data)
+                # Tools already ran: checkpoint for reconciliation; never replay automatically.
+                from core.role_memory import atomic_json
+                checkpoint = self.workspace_root / '.workflow' / f'{role}-http-limit-handoff.json'
+                atomic_json(checkpoint, {'reason': f'HTTP {exc.status} after tool calls', 'tool_trace': trace[-5:],
+                                         'next_safe_action': 'Reconcile tool effects before continuing this step.'})
+                data.update(handoff=str(checkpoint), reconcile_required=True)
+                return AgentRunResult(role, name, False, '', error=f'Provider HTTP {exc.status} after tool calls; '
+                                      'checkpoint saved, reconcile before retry', structured_data=data)
             if "error" in data:
                 raise RuntimeError("Model endpoint returned an error")
             token_total += int(data.get("usage", {}).get("total_tokens", 0))

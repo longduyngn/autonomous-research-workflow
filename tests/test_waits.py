@@ -12,19 +12,24 @@ from test_workflow import FakeRunner
 
 class WaitTests(unittest.TestCase):
     def test_first_http_rate_limit_is_safe_but_after_tools_is_not(self):
-        import urllib.error
-        from core.providers import EphemeralAgentRunner
+        from core.providers import EphemeralAgentRunner, ModelHTTPError
         with tempfile.TemporaryDirectory() as tmp:
             runner=EphemeralAgentRunner(tmp,{})
             provider={'base_url':'https://fixture.invalid','supports_tools':True,'require_api_key':False,'default_model':'fixture'}
-            error=urllib.error.HTTPError(provider['base_url'],429,'quota',{'Retry-After':'30'},None)
+            # _post converts urllib errors into ModelHTTPError (allow-listed fields only).
+            error=ModelHTTPError(429,30.0,'slow down')
             with patch.object(runner,'_post',side_effect=error):
                 result=runner._run_http('operator','fixture',provider,{},'','request',60,None)
-            self.assertEqual(result.structured_data,{'retry_safe':True,'retry_after':30})
+            self.assertTrue(result.structured_data['retry_safe'])
+            self.assertEqual(result.structured_data['retry_after'],30)
             first={'choices':[{'message':{'tool_calls':[{'id':'call1','function':{'name':'list_files','arguments':'{}'}}]}}]}
             with patch.object(runner,'_post',side_effect=[first,error]):
-                with self.assertRaises(urllib.error.HTTPError):
-                    runner._run_http('operator','fixture',provider,{},'','request',60,None)
+                result=runner._run_http('operator','fixture',provider,{},'','request',60,None)
+            # After a tool ran: no replay flag, a reconciliation checkpoint instead.
+            self.assertFalse(result.success)
+            self.assertNotIn('retry_safe',result.structured_data)
+            self.assertTrue(result.structured_data['reconcile_required'])
+            self.assertTrue(Path(result.structured_data['handoff']).exists())
 
     def test_crash_after_wait_commit_releases_stale_lease_without_replay(self):
         with tempfile.TemporaryDirectory() as tmp:
