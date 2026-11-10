@@ -219,6 +219,26 @@ class EphemeralAgentRunner:
             (item.get('provider', ''), item.get('model', '')) for item in cfg.get('fallbacks', [])]
 
     def run_role(self, role, task_prompt, cli_log_path=None, provider_override=None, model_override=None):
+        """Run one role invocation; the result carries the standard schema v1 view (P2.4-01)."""
+        result = self._run_role_dispatch(role, task_prompt, cli_log_path, provider_override, model_override)
+        from core.result_contract import standard_result
+        try:
+            output = str(Path(cli_log_path).with_suffix('.final.txt')) if cli_log_path and                 Path(cli_log_path).with_suffix('.final.txt').exists() else None
+            result.structured_data['standard'] = standard_result(result, output)
+            if cli_log_path:
+                receipt = Path(cli_log_path).with_suffix('.result.json')
+                if receipt.exists():
+                    from core.role_memory import atomic_json
+                    saved = json.loads(receipt.read_text(encoding='utf8'))
+                    saved['standard'] = result.structured_data['standard']
+                    saved['structured_data'] = result.structured_data
+                    atomic_json(receipt, saved)
+        except Exception as exc:
+            # Telemetry never changes the result or replays the tool run.
+            result.structured_data['standard_error'] = type(exc).__name__
+        return result
+
+    def _run_role_dispatch(self, role, task_prompt, cli_log_path=None, provider_override=None, model_override=None):
         chain = self.pinned_chain(role)
         if not chain:
             return self._run_role_with_memory(role, task_prompt, cli_log_path, provider_override, model_override)
@@ -873,8 +893,10 @@ class EphemeralAgentRunner:
                 out = message.get("content") or ""
                 if choice.get("finish_reason") in {"length", "content_filter"} or not out.strip():
                     raise RuntimeError("Model returned an incomplete or empty answer")
+                from core.quota import account_for
                 return AgentRunResult(role, name, True, out, structured_data={"tokens": token_total, "tool_trace": trace,
-                                      "turn_budget": budget, "turn_budget_exceeded": nudged})
+                                      "turn_budget": budget, "turn_budget_exceeded": nudged, "model": model,
+                                      "quota_account": account_for(provider, model) or ''})
             if not schemas:
                 raise ValueError("Text-only role attempted a tool call")
             messages.append(message)  # Preserve provider reasoning details needed by reasoning models.

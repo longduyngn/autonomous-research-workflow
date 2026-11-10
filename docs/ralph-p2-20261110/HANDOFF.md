@@ -22,8 +22,8 @@
 - Done also: P2.2 (researcher → planner with compatibility; D3 ordered planner chain).
 - Done also: P2.6-01 (optional plan approval per task).
 - Done also: P2.3 (pinned AGY roles + no-LLM answers).
-- Next: P2.4-01 standard result contract for every adapter (schema_version/status/error_class/usage, `success` derived),
-  P2.4-02 failover at Ralph boundary with handoff, P2.4-03 validator on a different provider/account, P2.4-04 CLI pins
+- Done also: P2.4-01 (standard result contract).
+- Next: P2.4-02 failover at Ralph boundary with handoff, P2.4-03 validator on a different provider/account, P2.4-04 CLI pins
   + scheduled smoke probes; then P2.6-02 remove default time budgets (D6).
 - The scheduled autopilot task is NOT installed (blocked by the session permission classifier); the user
   can install it with `python scripts/p2_autopilot.py install`.
