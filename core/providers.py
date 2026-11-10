@@ -91,6 +91,8 @@ def parse_opencode_stream(lines):
                                    ('cache_read_tokens', cache.get('read')), ('cache_write_tokens', cache.get('write'))):
                     if isinstance(value, (int, float)):
                         usage[key] += int(value)
+                # Context size is the last step's prompt, not the sum billed across steps.
+                usage['context_tokens'] = int(tokens.get('input') or 0) + int(cache.get('read') or 0)
                 summary['usage'] = usage
             if isinstance(part.get('cost'), (int, float)):
                 summary['cost_usd'] = (summary['cost_usd'] or 0.0) + float(part['cost'])
@@ -416,11 +418,23 @@ class EphemeralAgentRunner:
             if profile and profile['free_only'] and not free_selector.is_free(model):
                 raise ValueError(f"free_only profile refuses model {model}: not zero-priced in the current catalog")
             opencode_model = qualified_model(profile, model) if profile else model
+            state = getattr(self, 'role_session', None)
+            if session and isinstance(state, dict) and state.get('native_model') not in (None, opencode_model):
+                # A native session is bound to the model that produced it (auto_free may pick
+                # another model): start a fresh session; portable memory/handoff carry context.
+                session = ''
+                state['session_id'] = ''
+                state['rotation_reason'] = 'native model changed'
+            if isinstance(state, dict):
+                state['native_model'] = opencode_model
             # --dir: tool paths otherwise resolve against the inherited PWD (verified on 1.19.5).
             cmd = [resolved, "run", "--format", "json", "--title", getattr(self, "run_label", role),
                    "--agent", "build" if writable or role == "validator" else "plan", "--model", opencode_model,
-                   "--dir", str(self.workspace_root),
-                   f"Read {prompt_file} and perform its assigned {role} step."]
+                   "--dir", str(self.workspace_root)]
+            if session:
+                # Exact stored session only; never "continue the last session".
+                cmd += ["--session", session]
+            cmd.append(f"Read {prompt_file} and perform its assigned {role} step.")
             input_text = None
         else:
             cmd = [part.format(prompt_file=str(prompt_file), prompt=prompt, role=role, log_file=str(log),
@@ -477,6 +491,9 @@ class EphemeralAgentRunner:
             if hook_start["exit_code"]:
                 raise RuntimeError("Workflow lifecycle hook failed: " + hook_start["stderr"])
         stdout_file, stderr_file = log.with_suffix(".stdout.log"), log.with_suffix(".stderr.log")
+        for stale in (stdout_file, stderr_file):
+            # Never parse a previous invocation's stream as this run's output.
+            stale.unlink(missing_ok=True)
         supervision = {}
         options = self.config.get('monitoring', {})
         if (options.get('enabled', True) and role in {'operator','researcher','validator'}

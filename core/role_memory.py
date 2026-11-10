@@ -95,7 +95,10 @@ class RoleMemory:
         # Failed native resumes are not automatically replayed (side effects).
         state['session_id'] = (result.structured_data.get('session_id') or state.get('session_id','')) if result.success else ''
         usage=result.structured_data.get('usage',{})
-        if isinstance(usage,dict):
+        if isinstance(usage,dict) and isinstance(usage.get('context_tokens'),int):
+            # Providers that report the live context size directly (OpenCode last step).
+            state['context_tokens']=usage['context_tokens']
+        elif isinstance(usage,dict):
             context=usage.get('input_tokens')
             if isinstance(context,int) and context>=0:
                 state['context_tokens']=context+int(usage.get('cache_read_input_tokens') or usage.get('cache_read_tokens') or 0)+int(usage.get('cache_creation_input_tokens') or 0)
