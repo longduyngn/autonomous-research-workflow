@@ -17,9 +17,8 @@
 
 - Done: P2.0-01, P2.1-01 (contract in `config/provider_versions.json`, fixtures in `tests/fixtures/opencode/1.19.5/`),
   P2.1-02 (`core/opencode_config.py`), P2.1-02b (`core/openrouter_free.py`).
-- Done also: P2.1-03 (OpenCode adapter + `parse_opencode_stream`), P2.1-04 (session resume).
-- Next: P2.1-05 quota/usage ledger for api accounts,
-  P2.1-06 `_run_http` 429 fix, P2.1-07 offline+live API acceptance (`scripts/verify_p2_api.py`).
+- Done also: P2.1-03 (OpenCode adapter + `parse_opencode_stream`), P2.1-04 (session resume), P2.1-05 (API usage ledger).
+- Next: P2.1-06 `_run_http` 429 fix, P2.1-07 offline+live API acceptance (`scripts/verify_p2_api.py`).
 - The scheduled autopilot task is NOT installed (blocked by the session permission classifier); the user
   can install it with `python scripts/p2_autopilot.py install`.
 

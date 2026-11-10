@@ -1028,6 +1028,13 @@ class HybridOrchestrator:
             self.control.wait(task.id,'INPUT',task.status,'Approved action unused or its result uncertain; reconcile before retry',timeout=7*86400)
             raise TaskDeferred()
         exhausted = None
+        if not self.quota:
+            # Usage/cost ledger is kept even when routing is off; run_key makes it idempotent.
+            from core.quota import QuotaStore, record_result
+            try:
+                record_result(QuotaStore(self.db), self.config, role, result, None, task.id)
+            except Exception as exc:
+                result.structured_data['usage_ledger_error'] = type(exc).__name__
         if self.quota:
             from core.quota import record_result
             exhausted = record_result(self.quota.store, self.config, role, result, decision, task.id)
