@@ -72,3 +72,6 @@ checkpoint on /content durable or automatically mount/login/publish user storage
 
 
 For *.log/*.jsonl, use tail_log/search_log (native CLI: scripts/logs.py) or Read with limit/offset. Do not read entire logs. Read status_digest once per session; inspect changed evidence. Do not reread SKILL.md already in context.
+
+Remote training writes checkpoints to the shared store given by WORKFLOW_CHECKPOINT_URI (publish files, then
+the manifest last). Bring home only light results (metrics, logs, samples, reports) plus the manifest.

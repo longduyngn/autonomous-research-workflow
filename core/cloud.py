@@ -174,8 +174,8 @@ class CloudTools:
                     'state':{'enum':['RUNNING','COMPLETED','FAILED','UNKNOWN']},'metrics':{'type':'object'}},['job_id']),
             schema('colab_job_start', 'Start a registered Colab cell ONCE, then return immediately. Cell must log WORKFLOW_PROGRESS markers using workflow-progress helper.',
                    {'job_id':string},['job_id']),
-            schema('experiment_job_artifacts', 'Record explicitly downloaded output files after compute completion. Existing acceptance checks still decide validity.',
-                   {'job_id':string,'files':{'type':'array','items':string}},['job_id','files']),
+            schema('experiment_job_artifacts', 'Record outputs after compute completion: explicitly downloaded files, or a fetched shared-store manifest (heavy files stay remote). Existing acceptance checks still decide validity.',
+                   {'job_id':string,'files':{'type':'array','items':string},'manifest':string,'external_job_id':string},['job_id']),
             schema('experiment_job_resume_checkpoint', 'Reconcile a confirmed FAILED job using a verified controller checkpoint whose metadata.job_id matches. UNKNOWN jobs cannot be retried.',
                    {'job_id':string,'checkpoint_id':string},['job_id','checkpoint_id']),
         ]
@@ -267,10 +267,24 @@ class CloudTools:
             raise ValueError('Compute completion must be observed before recording downloads')
         if job['total'] and job['completed'] < job['total']:
             raise ValueError('Job ended before its declared cohort was completed')
-        files=args['files']
-        if not files or len(files)>10000:
+        if args.get('manifest'):
+            # D7: heavy artifacts stay on the shared store; a verified manifest + artifact index is the evidence.
+            from core.artifact_store import validate_manifest
+            manifest=validate_manifest(json.loads(self.path(args['manifest']).read_text(encoding='utf-8')))
+            if manifest.get('job_id') not in (job['id'], args.get('external_job_id')) or manifest['publication_state']!='PUBLISHED':
+                raise ValueError('Manifest does not belong to this job or is not published')
+            index_path=self.path(args['manifest']).with_name('artifact_index.json')
+            index=json.loads(index_path.read_text(encoding='utf-8')) if index_path.exists() else {'artifacts':[]}
+            bad=[a['uri'] for a in index.get('artifacts',[]) if a.get('state')=='unvalidated']
+            if bad or not index.get('artifacts'):
+                raise ValueError('Artifacts are not verified yet: '+', '.join(bad[:5] or ['no artifact index']))
+            records=[{'uri':a['uri'],'state':a['state'],'bytes':a.get('bytes'),'sha256':a.get('sha256')} for a in index['artifacts']]
+            files=[]
+        else:
+            files=args['files']
+            records=[]
+        if not args.get('manifest') and (not files or len(files)>10000):
             raise ValueError('List downloaded output files explicitly')
-        records=[]
         for name in files:
             path=self.path(name)
             if not path.is_file() or path.is_symlink() or not path.stat().st_size:

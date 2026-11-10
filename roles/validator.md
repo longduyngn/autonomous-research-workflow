@@ -38,3 +38,7 @@ because the operator says it finished.
 
 
 For *.log/*.jsonl, use tail_log/search_log (native CLI: scripts/logs.py) or Read with limit/offset. Do not read entire logs. Read status_digest once per session; inspect changed evidence. Do not reread SKILL.md already in context.
+
+Heavy outputs (checkpoints, large models) stay on the shared store. A published manifest plus
+`results/<task>/<run>/artifact_index.json` with `remote_verified`/`local_fetched` states is the evidence;
+do not download checkpoints just to satisfy a file check. `unvalidated` entries are never evidence.
