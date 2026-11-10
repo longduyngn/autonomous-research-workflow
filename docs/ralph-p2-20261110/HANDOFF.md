@@ -26,7 +26,8 @@
 - Done also: P2.4-04 (CLI pins + throttled smoke). P2.4 complete.
 - Done also: P2.6-02 (no default time budgets).
 - Done also: P2.5-01 (job contract + journal), P2.5-02 (manifest/store), P2.5-03 (Drive live publish/restore PASS), P2.5-04/05 (Colab/Kaggle adapters, offline), P2.5-06 (model-free poller), P2.5-07 (light results home), P2.5-08 (cross-backend resume, offline).
-- Next: P2.5-09 optional HF Hub export (default off), P2.6-03 handoff/context contract, P2.7-01 mini-DDPM example +
+- Done also: P2.5-09 (optional HF export). P2.5 complete offline.
+- Next: P2.6-03 handoff/context contract, P2.7-01 mini-DDPM example +
   offline e2e, P2.7-02 live acceptance (Kaggle/Colab/Discord; needs browser/accounts), P2.7-03 docs.
 - The scheduled autopilot task is NOT installed (blocked by the session permission classifier); the user
   can install it with `python scripts/p2_autopilot.py install`.

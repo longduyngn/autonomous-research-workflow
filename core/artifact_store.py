@@ -274,3 +274,39 @@ def prune(store, run_root, keep=3, protect=()):
             store.delete(rel)
             removed.append(rel)
     return removed
+
+
+# ------------------------------------------------------------------ optional HF Hub export (P2.5-09)
+
+def export_to_hf(store, manifest, settings, api=None, names=None):
+    """Upload manifest-listed files to a Hugging Face repo; off unless ``settings['enabled']``.
+
+    Private by default; only files listed in the manifest (optionally narrowed by ``names``) are sent.
+    A failure never touches the shared-store copy. Returns a receipt with repo/revision per file.
+    """
+    import tempfile
+    if not settings.get('enabled'):
+        raise RuntimeError('HF export is disabled (storage.hf_export.enabled=false)')
+    repo_id = settings.get('repo_id', '')
+    if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repo_id):
+        raise ValueError('storage.hf_export.repo_id must be owner/name')
+    if api is None:
+        import os
+        from huggingface_hub import HfApi  # optional dependency
+        api = HfApi(token=os.environ.get(settings.get('token_env', 'HF_TOKEN')) or None)
+    api.create_repo(repo_id, private=settings.get('private', True), exist_ok=True)
+    selected = [f for f in manifest['files'] if names is None or Path(f['rel']).name in set(names)]
+    receipt = {'repo_id': repo_id, 'private': settings.get('private', True), 'files': []}
+    with tempfile.TemporaryDirectory() as tmp:
+        for item in selected:
+            local = Path(tmp) / Path(item['rel']).name
+            store.get(item['rel'], local)
+            if sha256_file(local) != item['sha256']:
+                raise RuntimeError(f'Hash mismatch before export: {local.name}')
+            path_in_repo = f"{manifest['logical_run_id']}/{manifest['checkpoint_id']}/{local.name}"
+            info = api.upload_file(path_or_fileobj=str(local), path_in_repo=path_in_repo, repo_id=repo_id,
+                                   commit_message=f"workflow export {manifest['checkpoint_id']}")
+            revision = getattr(info, 'oid', None) or (info.get('oid') if isinstance(info, dict) else None)
+            receipt['files'].append({'path_in_repo': path_in_repo, 'sha256': item['sha256'], 'revision': revision})
+            local.unlink()
+    return receipt
