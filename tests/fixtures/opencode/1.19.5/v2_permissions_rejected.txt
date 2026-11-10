@@ -1,0 +1,2 @@
+Error: Configuration is invalid at OPENCODE_CONFIG_CONTENT
+↳ V2 permissions are not supported by OpenCode V1. Use V1 "permission" rules or run opencode2. permissions

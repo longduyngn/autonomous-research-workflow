@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "providers": {
+    "opencode_cli": {
+      "package": "opencode-ai",
+      "version": "1.19.5",
+      "verified_on": "2026-11-11",
+      "install": "npm i -g opencode-ai@1.19.5",
+      "permission_schema": "v1",
+      "permission_env": "OPENCODE_PERMISSION",
+      "permission_keys": ["*", "read", "edit", "glob", "grep", "list", "bash", "task", "skill", "webfetch", "websearch", "external_directory", "question", "todowrite"],
+      "v2_permissions_supported": false,
+      "run_flags": ["run", "--format", "json", "--model", "--agent", "--dir", "--session", "--title", "--variant"],
+      "required_invocation": {
+        "stdin": "closed (DEVNULL); an open stdin pipe blocks before the first model call",
+        "dir_flag": "--dir <workspace>; relative tool paths otherwise resolve against the inherited PWD, not the process cwd"
+      },
+      "events": {
+        "step_start": ["sessionID", "part.messageID"],
+        "text": ["part.text"],
+        "tool_use": ["part.tool", "part.callID", "part.state.status", "part.state.input", "part.state.output|part.state.error"],
+        "step_finish": ["part.reason", "part.tokens.input", "part.tokens.output", "part.tokens.reasoning", "part.tokens.cache.read", "part.tokens.cache.write", "part.cost"],
+        "error": ["error.name", "error.data.message", "error.data.statusCode", "error.data.isRetryable", "error.data.responseHeaders.retry-after"]
+      },
+      "observed_behaviour": {
+        "denied_tools": "removed from the tool list sent to the model; a call to them yields tool_use status=error",
+        "rate_limit": "retries internally, then emits one error event (statusCode 429, retry-after header) and exits 1",
+        "title_request": "one extra tool-less completion per new session (small model) for the session title"
+      },
+      "isolation_env": ["XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME", "OPENCODE_CONFIG_CONTENT", "OPENCODE_DISABLE_AUTOUPDATE", "OPENCODE_DISABLE_MODELS_FETCH", "OPENCODE_DISABLE_CLAUDE_CODE", "OPENCODE_DISABLE_PROJECT_CONFIG", "OPENCODE_DISABLE_DEFAULT_PLUGINS", "OPENCODE_DISABLE_EXTERNAL_SKILLS", "OPENCODE_DISABLE_LSP_DOWNLOAD"],
+      "fixtures": "tests/fixtures/opencode/1.19.5/",
+      "provenance": "Recorded 2026-11-11 by running the installed 1.19.5 binary against tests/fakes/api_server.py in an isolated XDG home; no real model account used."
+    }
+  }
+}
