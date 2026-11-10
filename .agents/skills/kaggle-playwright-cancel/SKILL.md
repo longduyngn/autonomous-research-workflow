@@ -19,7 +19,7 @@ Run via [kaggle_cancel.py](./scripts/kaggle_cancel.py):
 .conda\python.exe .agents/skills/kaggle-playwright-cancel/scripts/kaggle_cancel.py --slug OWNER/KERNEL --progress-only
 
 # 2. Cancel / stop a running Kaggle GPU kernel version immediately
-.conda\python.exe .agents/skills/kaggle-playwright-cancel/scripts/kaggle_cancel.py --slug OWNER/KERNEL
+.conda\python.exe .agents/skills/kaggle-playwright-cancel/scripts/kaggle_cancel.py --slug OWNER/KERNEL --version N
 ```
 
 ## Verification via Kaggle CLI
@@ -28,3 +28,10 @@ After cancelling, verify that Kaggle acknowledged worker termination:
 .conda\Scripts\kaggle.exe kernels status OWNER/KERNEL
 ```
 Expected status: `KernelWorkerStatus.CANCEL_ACKNOWLEDGED` or `cancelled`.
+
+## Exact-version cancellation (P2.5-05)
+
+Cancellation requires `--version N` (the version recorded at push). The script clicks only the unique row named
+`Version N`; with no unique row it clicks nothing. Its result is `cancel_requested`, never `cancelled`: the controller
+verifies the stop with `kaggle kernels status`. Agents use the `kaggle_job_cancel` cloud tool; `kaggle_job_status`
+is observation only.

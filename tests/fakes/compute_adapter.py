@@ -11,7 +11,7 @@ class FakeJobAdapter:
         self._ids = itertools.count(1)
         self.effects = 0
 
-    def submit(self, spec, request_key):
+    def submit(self, spec, request_key, job_id=None):
         self.calls.append(('submit', request_key))
         self.effects += 1
         if self.submit_error:

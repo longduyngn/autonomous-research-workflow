@@ -77,7 +77,7 @@ class JobHandle:
 
 
 class JobAdapter(Protocol):
-    def submit(self, spec: JobSpec, request_key: str) -> dict: ...          # -> {'external_id', 'details'}
+    def submit(self, spec: JobSpec, request_key: str, job_id: str) -> dict: ...  # -> {'external_id', 'details'}
     def status(self, handle: JobHandle) -> dict: ...                       # -> {'state', 'completed'?, ...}
     def logs_tail(self, handle: JobHandle, cursor: int, limit: int) -> dict: ...
     def fetch_outputs(self, handle: JobHandle, manifest: dict, policy: dict) -> dict: ...
@@ -139,7 +139,8 @@ class JobController:
                 raise ValueError('Request key reused with a changed job specification')
             return self._handle(existing), ('existing' if existing['state'] == 'SUBMITTED' else 'unknown')
         adapter = self.registry.get(spec.backend)
-        job, _ = self.store.register(spec.task_id, request_key, spec.backend, total=spec.total,
+        job, _ = self.store.register(spec.task_id, request_key, spec.backend,
+                                     external_id=str(spec.config.get('register_external_id', '')), total=spec.total,
                                      stall_seconds=spec.stall_seconds, budget_seconds=spec.budget_seconds)
         attempt = hashlib.sha256((request_key + fingerprint).encode()).hexdigest()[:16]
         now = self.clock()
@@ -148,7 +149,7 @@ class JobController:
                       (request_key, spec.task_id, fingerprint, job['id'], attempt, spec.backend, 'SUBMITTING', '{}',
                        spec.parent_job_id, now, now))
         try:
-            result = adapter.submit(spec, request_key) or {}
+            result = adapter.submit(spec, request_key, job['id']) or {}
         except Exception as exc:
             self._set(request_key, 'SUBMISSION_UNKNOWN', {'error': type(exc).__name__})
             self.store.observe(job['id'], {'state': 'SUBMISSION_UNKNOWN', 'completed': 0}, spec.backend)
@@ -177,7 +178,8 @@ class JobController:
         if state not in OBSERVED_STATES:
             state = 'UNKNOWN'
         mapped = {'QUEUED': 'RUNNING', 'CANCELLED': 'FAILED'}.get(state, state)
-        record = {k: v for k, v in observation.items() if k in ('completed', 'total', 'metrics', 'stage', 'heartbeat_at')}
+        record = {k: v for k, v in observation.items()
+                  if k in ('completed', 'total', 'metrics', 'stage', 'heartbeat_at') and v not in (None, '')}
         record['state'] = mapped
         job = self.store.get(handle.job_id)
         record.setdefault('completed', job['completed'])

@@ -157,7 +157,8 @@ class CloudTools:
             schema("colab_release", "Close this task's browser bridge transport AFTER shutting down unused remote compute; pass force=true to close shared session", {"force": {"type": "boolean"}}),
             schema("kaggle_execute_notebook", "Stage an isolated Kaggle kernel and submit a real cloud run; records job ID", {**notebook, "hardware": string, "kaggle_kernel_slug": string, "input_files": {"type": "array", "items": string}, "dataset_sources": {"type": "array", "items": string}, "competition_sources": {"type": "array", "items": string}, "timeout_seconds": {"type": "integer"}, 'total':{'type':'number'},'stall_seconds':{'type':'number'}}, ["notebook_path"]),
             schema("kaggle_job_status", "Poll a submitted Kaggle run once; no blocking GPU wait", {"job_id": string}, ["job_id"]),
-            schema("kaggle_export_data", "Download outputs of a completed Kaggle job into its task workspace", {"job_id": string}, ["job_id"]),
+            schema("kaggle_export_data", "Download only the named light outputs (metrics/logs/reports/samples) of a completed Kaggle job; heavy checkpoints stay on the shared store", {"job_id": string, "files": {"type": "array", "items": string}, "file_pattern": string, "all": {"type": "boolean"}}, ["job_id"]),
+            schema("kaggle_job_cancel", "Request cancellation of exactly the submitted Kaggle version; verify afterwards with kaggle_job_status", {"job_id": string, "reason": string}, ["job_id", "reason"]),
             schema('experiment_job_register', 'Register job identity BEFORE launch. Reusing request_key never resubmits. Use one job for sequential stages; completed counts must be monotonic.',
                    {'request_key':string,'backend':{'enum':['colab','kaggle','local']},'external_id':string,
                     'wandb_path':string,'total':{'type':'number'},'stall_seconds':{'type':'number'},
@@ -764,6 +765,9 @@ class CloudTools:
             m = re.search(r"kaggle\.com/code/([A-Za-z0-9_-]+/[A-Za-z0-9_-]+)", job["submission_output"])
             if m:
                 job["slug"] = m.group(1)
+            v = re.search(r"\bversion\s+(\d+)\b", job["submission_output"], re.I)
+            if v:
+                job["version"] = int(v.group(1))
             job["state"] = "submitted"
         except Exception as exc:
             job["state"] = "submission_unknown"
@@ -772,32 +776,58 @@ class CloudTools:
         return job
 
     def kaggle_job_status(self, args):
+        """Observation only (P2.5-05): never cancels, reconnects or resubmits."""
+        if args.get("cancel"):
+            raise ValueError("kaggle_job_status never cancels; use kaggle_job_cancel with a reason")
         path = self._job_path(args["job_id"])
         job = json.loads(path.read_text(encoding="utf-8"))
         output = self._kaggle(["status", job["slug"]], timeout=30)
         matches = re.findall(r"\b(complete|running|queued|error|cancelled|canceled)\b", output.lower())
         job["state"] = matches[-1] if matches else "unknown"
+        reported = re.search(r"\bversion\s+(\d+)\b", output, re.I)
+        if job.get("version") and reported and int(reported.group(1)) != job["version"]:
+            # The slug now points at another version: this observation is not about our job.
+            job["state"] = "unknown"
+            job["version_mismatch"] = int(reported.group(1))
         job["status_output"] = output
-        if args.get("cancel") and job["state"] in {"running", "queued"} and _is_port_open(9222):
-            try:
-                cancel_script = self.root / ".agents/skills/kaggle-playwright-cancel/scripts/kaggle_cancel.py"
-                if cancel_script.exists():
-                    import importlib.util
-                    spec = importlib.util.spec_from_file_location("kaggle_cancel", str(cancel_script))
-                    mod = importlib.util.module_from_spec(spec)
-                    spec.loader.exec_module(mod)
-                    job["playwright_cancel"] = mod.cancel_kaggle_kernel(job["slug"])
-            except Exception as exc:
-                job["playwright_cancel_error"] = str(exc)
         path.write_text(json.dumps(job, indent=2), encoding="utf-8")
         return job
 
+    def kaggle_job_cancel(self, args):
+        """Request cancellation of the recorded version only; the result is unverified until status confirms it."""
+        if not args.get("reason"):
+            raise ValueError("A cancellation reason is required")
+        path = self._job_path(args["job_id"])
+        job = json.loads(path.read_text(encoding="utf-8"))
+        if not job.get("version"):
+            return {"status": "refused", "reason": "Submitted version unknown; reconcile in the Kaggle UI first"}
+        if not _is_port_open(9222):
+            return {"status": "unavailable", "reason": "Browser CDP port 9222 is not open"}
+        import importlib.util
+        script = self.root / ".agents/skills/kaggle-playwright-cancel/scripts/kaggle_cancel.py"
+        spec = importlib.util.spec_from_file_location("kaggle_cancel", str(script))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        receipt = mod.cancel_kaggle_kernel(job["slug"], version=job["version"])
+        job.setdefault("cancel_requests", []).append({"at": time.time(), "reason": args["reason"][:200], "receipt": receipt})
+        path.write_text(json.dumps(job, indent=2), encoding="utf-8")
+        return receipt
+
     def kaggle_export_data(self, args):
-        job = self.kaggle_job_status(args)
+        job = self.kaggle_job_status({"job_id": args["job_id"]})
         if job["state"] != "complete":
             return {"status": "not_ready", "job": job}
         export = self.path(f"artifacts/kaggle/{job['id']}")
         export.mkdir(parents=True, exist_ok=True)
-        output = self._kaggle(["output", job["slug"], "-p", str(export)], timeout=300)
+        target = f"{job['slug']}/{job['version']}" if job.get("version") else job["slug"]
+        argv = ["output", target, "-p", str(export)]
+        if args.get("files"):
+            argv += ["--file-pattern", "^(?:" + "|".join(re.escape(str(f)) for f in args["files"]) + ")$"]
+        elif args.get("file_pattern"):
+            argv += ["--file-pattern", str(args["file_pattern"])]
+        elif not args.get("all"):
+            # D7: never download everything by default; heavy checkpoints belong on the shared store.
+            argv += ["--file-pattern", r"(?i)^[^/]*\.(?:json|jsonl|csv|txt|log|md|png|jpg|jpeg|svg)$"]
+        output = self._kaggle(argv, timeout=300)
         return {"status": "completed", "export_dir": str(export), "output": output,
                 "files": [str(p.relative_to(self.root)) for p in export.rglob("*") if p.is_file()]}
