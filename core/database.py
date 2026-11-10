@@ -160,7 +160,7 @@ class WorkspaceDatabase:
                 # Legacy active records have no proof that their previous process stopped.
                 conn.execute("""UPDATE tasks SET status='ESCALATED', outcome='ESCALATED', current_role=NULL,
                     validation_feedback='Legacy in-progress task: inspect artifacts before a follow-up request.'
-                    WHERE status IN ('RESEARCHING','OPERATING','VALIDATING','COMMUNICATING')""")
+                    WHERE status IN ('PLANNING','RESEARCHING','OPERATING','VALIDATING','COMMUNICATING')""")
 
     def log_event(
         self,
@@ -258,6 +258,7 @@ class WorkspaceDatabase:
         """Return tasks that are ready for orchestrator step execution."""
         active_statuses = (
             TaskStatus.PENDING.value,
+            TaskStatus.PLANNING.value,
             TaskStatus.RESEARCHING.value,
             TaskStatus.OPERATING.value,
             TaskStatus.VALIDATING.value,
@@ -344,7 +345,7 @@ class WorkspaceDatabase:
             if count >= capacity:
                 return None
             params = []
-            where = "status IN ('PENDING','RESEARCHING','OPERATING','VALIDATING','COMMUNICATING','WAITING_REMOTE') AND lease_owner=''"
+            where = "status IN ('PENDING','PLANNING','RESEARCHING','OPERATING','VALIDATING','COMMUNICATING','WAITING_REMOTE') AND lease_owner=''"
             where += ' AND NOT EXISTS (SELECT 1 FROM task_waits w WHERE w.task_id=tasks.id)'
             if task_id is not None:
                 where += " AND id=?"

@@ -17,7 +17,7 @@ class ResearchEventTests(unittest.TestCase):
             task=orch.submit_task('research');task=db.update_task(task.id,status='OPERATING',workspace_path=str(root))
             runner.run_role=lambda role,**kw:AgentRunResult(role,'fake',True,'RESEARCH_REVIEW: unexpected loss divergence')
             updated=orch.process_next_step(task)
-            self.assertEqual(updated.status,'RESEARCHING')
+            self.assertEqual(updated.status,'PLANNING')
             self.assertEqual(updated.event_review_count,1)
             self.assertEqual(updated.retry_count,0)
 
@@ -33,11 +33,11 @@ class ResearchEventTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);db=WorkspaceDatabase(root/'db')
             plan={'mode':'steps','steps':[{'instructions':'first'},{'instructions':'second'}]}
-            runner=FakeRunner(plan='```research_plan\n'+json.dumps(plan)+'\n```')
+            runner=FakeRunner(plan='```planner_plan\n'+json.dumps(plan)+'\n```')
             orch=HybridOrchestrator(root,{'isolation':{'enabled':False}},db,ContextLogManager(root/'logs'),runner)
             task=orch.run_task_to_completion(orch.submit_task('two milestones').id)
             self.assertEqual(task.status,'COMPLETED')
-            self.assertEqual(runner.calls,['researcher','operator','validator','researcher','operator','validator','communicator'])
+            self.assertEqual(runner.calls,['planner','operator','validator','planner','operator','validator','communicator'])
             self.assertEqual(task.plan_revision,2)
             self.assertTrue((root/'.workflow/plans/plan_0001.json').exists())
             self.assertTrue((root/'.workflow/plans/plan_0002.json').exists())

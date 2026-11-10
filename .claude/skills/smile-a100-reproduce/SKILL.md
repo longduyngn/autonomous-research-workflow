@@ -12,7 +12,7 @@ Do not reread this skill when it is already in context. Inspect only changed evi
 Use one bounded Ralph item per role invocation: reconcile identity, act, verify, checkpoint, exit.
 Current routing and activation evidence live in `role_routing.json`, `agent_roles.json`,
 and native handover receipts. Historical session IDs are not proof of live agents.
-Operator: Claude Sonnet; researcher: Claude Opus; independent validator: AGY Argon;
+Operator: Claude Sonnet; planner: Claude Opus; independent validator: AGY Argon;
 coordinator/communicator/guardian: AGY Gemini 3.8. Preserve explicit user overrides.
 
 Use deterministic helpers from the controller root:

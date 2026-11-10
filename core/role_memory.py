@@ -33,11 +33,34 @@ def atomic_json(path, value):
 
 class RoleMemory:
     def __init__(self, root, role):
-        if role not in {'researcher', 'operator', 'validator', 'communicator', 'guardian', 'workspace_watcher', 'world_watcher', 'remote_manager'}:
+        from core.role_names import canonical_role, role_aliases
+        role = canonical_role(role)
+        if role not in {'planner', 'operator', 'validator', 'communicator', 'guardian', 'workspace_watcher', 'world_watcher', 'remote_manager'}:
             raise ValueError('Unknown role')
+        self.role = role
         self.directory = Path(root) / '.workflow' / 'roles' / role
+        self.legacy_directories = [Path(root) / '.workflow' / 'roles' / name for name in role_aliases(role)[1:]]
         self.directory.mkdir(parents=True, exist_ok=True)
         self.path = self.directory / 'state.json'
+
+    def _migrate_legacy(self):
+        """Copy portable history from a legacy role directory once (caller holds the lock).
+
+        The legacy directory is left untouched. The native session is never carried over:
+        renamed role instructions change the identity, so the first run starts a new
+        generation with a handover instead of force-resuming an old session.
+        """
+        if self.path.exists() or (self.directory / 'migrated_from.json').exists():
+            return
+        for legacy in self.legacy_directories:
+            history = legacy / 'history.jsonl'
+            if not (legacy / 'state.json').exists() and not history.exists():
+                continue
+            if history.exists():
+                (self.directory / 'history.jsonl').write_bytes(history.read_bytes())
+            atomic_json(self.directory / 'migrated_from.json', {'legacy_directory': str(legacy),
+                        'reason': 'role renamed researcher -> planner; history copied, session not resumed'})
+            return
 
     @contextmanager
     def locked(self):
@@ -63,6 +86,7 @@ class RoleMemory:
                     fcntl.flock(f, fcntl.LOCK_UN)
 
     def load(self, identity):
+        self._migrate_legacy()
         key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
         state = json.loads(self.path.read_text(encoding='utf-8')) if self.path.exists() else {}
         reason=('provider/model/instructions changed' if state.get('identity') != key else

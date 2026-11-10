@@ -2,14 +2,14 @@
 
 Give a coding or research task to a small team of headless agents. The controller
 queues requests, creates isolated workspaces, and runs **Research → Execute →
-Check → Report**. Failed checks trigger a bounded repair loop. The researcher
+Check → Report**. Failed checks trigger a bounded repair loop. The planner
 chooses whether the task needs milestones; simple work stays simple.
 
 Every role can use a different CLI or API model. Antigravity, Codex and Claude
 Code support native workflow hooks. OpenCode supports named JSON sessions;
 OpenRouter and compatible APIs use the controller's tool loop.
 
-The **researcher** makes a plan, the **operator** runs commands and changes files,
+The **planner** makes a plan, the **operator** runs commands and changes files,
 the **validator** checks the result, and the **communicator** reports it. Each
 task gets its own workspace and role history. You can start with one provider
 for every role and configure different models later.

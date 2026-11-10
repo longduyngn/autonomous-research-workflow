@@ -8,7 +8,7 @@ description: Run and supervise the SMILE A100 reproduction campaign with Claude 
 ## Active provider override (2026-11-08, latest user instruction)
 
 All Codex campaign roles are retired. Operator = native Claude Sonnet
-`claude-sonnet-5-5`; researcher = independent native Claude Opus
+`claude-sonnet-5-5`; planner = independent native Claude Opus
 `claude-opus-5-5`; validator = independent AGY `gemini-4-argon-high`.
 All other roles, including coordinator, communicator and 900-second human-proxy
 guardian, use AGY `gemini-3.8-flash-medium`. This overrides historical tables.
@@ -32,13 +32,13 @@ inspect one item, implement, verify with evidence, record, and continue.
 
 The latest user explicitly requests a real Claude run, a Claude agent replacing
 their human supervision, and permits the handing-off assistant to stop only once
-that guardian exists and is operating. Operators use Sonnet; the researcher uses
+that guardian exists and is operating. Operators use Sonnet; the planner uses
 Opus. Important results must be reported directly in Vietnamese chat/status;
 the user does not want to read documentation to discover progress.
 
-Autonomously repair malformed researcher output, dependency/setup issues,
+Autonomously repair malformed planner output, dependency/setup issues,
 transient errors, resumable job failures, resource backoff, and role handovers.
-Let the responsible researcher attempt its own format/plan repair before changing
+Let the responsible planner attempt its own format/plan repair before changing
 task state or escalating. Do not send Discord alerts for each small repaired error.
 Notify the user only about an unresolved blocker or consequential decision.
 Existing project Discord channels may be used for authorized campaign progress;
@@ -55,14 +55,14 @@ Real MFA/consent or missing credentials remain blockers; continue independent wo
 |---|---|---|
 | Local operator | Claude Sonnet `claude-sonnet-5-5` | Prepare jobs, preserve leases, transfer artifacts, recover/reconcile |
 | Cloud worker | Detached Python/vLLM on managed Colab | Execute experiments; no active native cloud agent |
-| Researcher | Native Claude Opus (`claude-opus-5-5`, live verified) | Read source, define matrix/protocol, diagnose scientific issues |
+| Planner | Native Claude Opus (`claude-opus-5-5`, live verified) | Read source, define matrix/protocol, diagnose scientific issues |
 | Validator | AGY, Gemini 4 Argon (`gemini-4-argon-high` preferred) | Independent raw-artifact checks and scientific verdict |
 | Communicator | AGY, e.g. previously verified `gemini-3.8-flash-medium` | Persistent conversation/status, concise Vietnamese summaries |
 | Coordinator and human-proxy guardian | AGY Gemini `gemini-3.8-flash-medium`, shared with communicator | Coordinate routine next steps, check health every 900 seconds |
 
 Verify current account/model availability; retain real native model/session IDs.
 Resolve the native `opus` alias with a live probe and record its actual model ID;
-do not pretend a Sonnet call is an Opus researcher. Use shared subscription quota
+do not pretend a Sonnet call is an Opus planner. Use shared subscription quota
 economically; prefer deterministic code over repeated idle reasoning.
 Keep validator independent of candidate changes and separate from guardian/operator.
 Cloud operator plus deterministic validation code should run on cloud. A local
@@ -145,7 +145,7 @@ Verified source inventory:
 
 ## Ralph research/execution queue
 
-Researcher creates `experiment_matrix.json` with stable experiment IDs, priority,
+Planner creates `experiment_matrix.json` with stable experiment IDs, priority,
 source of each setting, expected doc IDs/counts, seeds, verifier provenance,
 required positive/negative cohorts, dependencies, output paths and state.
 Use a fixed primary matrix denominator; record later extensions separately.
@@ -271,10 +271,10 @@ receipts; do not assume a historical PID is still running. The coordinator's
 isolated worktree is `.claude/worktrees/smile-campaign`; ignored campaign data and
 host Python remain at the original controller root.
 
-A genuine read-only Opus researcher already inspected the handover and source:
+A genuine read-only Opus planner already inspected the handover and source:
 session `ad0cf789-b320-464b-9969-9e1446fb55b4`, actual model `claude-opus-5-5`,
 no permission denials. Read its protocol and risks from campaign
-`researcher_opus.raw.json` (the `result` field). Resume/reuse that role session
+`planner_opus.raw.json` (the `result` field). Resume/reuse that role session
 serially rather than treating a separate Opus nonce smoke as completed research.
 
 Publish `campaign_status.json` and a concise Vietnamese `status_vi.md` on every

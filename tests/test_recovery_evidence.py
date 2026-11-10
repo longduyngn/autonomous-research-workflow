@@ -30,7 +30,7 @@ class RecoveryEvidenceTests(unittest.TestCase):
             with self.subTest(backend=backend), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 db = WorkspaceDatabase(root / 'events.db')
-                plan = '```research_plan\n' + json.dumps({'mode':'direct', 'backend':backend}) + '\n```'
+                plan = '```planner_plan\n' + json.dumps({'mode':'direct', 'backend':backend}) + '\n```'
                 runner = FakeRunner(plan=plan)
                 orch = HybridOrchestrator(root, {'isolation':{'enabled':False}}, db,
                     ContextLogManager(root / 'logs'), runner)

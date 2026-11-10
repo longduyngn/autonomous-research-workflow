@@ -42,7 +42,7 @@ class SupervisionTests(unittest.TestCase):
     def test_ambiguous_unregistered_timeout_does_not_blindly_retry(self):
         self.runner.run_role=lambda role,**kw:AgentRunResult(role,'fixture',False,'',error='Timed out after 1800s')
         task=self.orch._execute_operator(self.db.get_task(self.task.id))
-        self.assertEqual((task.status,task.retry_count),('RESEARCHING',0))
+        self.assertEqual((task.status,task.retry_count),('PLANNING',0))
         with self.db._connect() as c:
             self.assertEqual(c.execute('SELECT COUNT(*) FROM message_outbox').fetchone()[0],0)
         self.orch.supervisor.notice(task,'Repeated reason')

@@ -59,7 +59,7 @@ class ConversationTests(unittest.TestCase):
         self.assertFalse(self.chat.apply_feedback(task_id))
         self.db.update_task(task_id, status='VALIDATING')
         self.assertTrue(self.chat.apply_feedback(task_id))
-        self.assertEqual(self.db.get_task(task_id).status, 'RESEARCHING')
+        self.assertEqual(self.db.get_task(task_id).status, 'PLANNING')
 
     def test_crash_after_submit_is_recovered_without_duplicate_task(self):
         from unittest.mock import patch
@@ -80,7 +80,7 @@ class ConversationTests(unittest.TestCase):
         task=self.db.finalize_task(task_id,'COMPLETED','stale report',expected_feedback_revision=0)
         self.assertNotEqual(task.status,'COMPLETED')
         self.assertTrue(self.chat.apply_feedback(task_id))
-        self.assertEqual(self.db.get_task(task_id).status,'RESEARCHING')
+        self.assertEqual(self.db.get_task(task_id).status,'PLANNING')
 
     def test_optional_chat_reply_gets_scoped_memory_without_creating_work(self):
         calls=[]

@@ -95,7 +95,7 @@ class DisabledRoutingLedgerTests(unittest.TestCase):
             self.assertEqual(task.status, 'COMPLETED')
             rows = QuotaStore(db).ledger(limit=100)
             roles = [r['role'] for r in rows if r['task_id'] == task.id]
-            self.assertTrue({'researcher', 'operator', 'validator'} <= set(roles))
+            self.assertTrue({'planner', 'operator', 'validator'} <= set(roles))
             self.assertEqual(len(roles), len({r['run_key'] for r in rows if r['task_id'] == task.id}))
             self.assertTrue(all(r['account'] == 'api:openrouter:m:free' for r in rows if r['task_id'] == task.id))
 

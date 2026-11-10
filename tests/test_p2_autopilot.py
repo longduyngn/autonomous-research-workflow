@@ -29,7 +29,7 @@ class FakeRouter:
         self.routes, self.cooled = routes, cooled
 
     def select(self, role):
-        if role != 'researcher':
+        if role != 'planner':
             return None
         for provider, model, account in self.routes:
             if 'quota:' + account not in self.cooled and provider not in self.cooled:

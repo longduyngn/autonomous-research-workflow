@@ -142,7 +142,7 @@ class ProviderBudgetTests(unittest.TestCase):
 
     def test_soft_budget_permissions_all_roles(self):
         with tempfile.TemporaryDirectory() as tmp:
-            for role, budget in [('communicator',5),('operator',35),('researcher',25),('validator',15),('guardian',20)]:
+            for role, budget in [('communicator',5),('operator',35),('planner',25),('validator',15),('guardian',20)]:
                 result, argv = self.call(tmp,role)
                 self.assertNotIn('--max-turns', argv)
                 self.assertEqual(result.structured_data['turn_budget'], budget)

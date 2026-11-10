@@ -93,7 +93,7 @@ class Supervisor:
             return  # Bound model spend; one consultation per pass.
         with self.db._connect() as c:
             rows=c.execute('''SELECT a.* FROM agent_runs a JOIN tasks t ON t.id=a.task_id
-              WHERE a.status='RUNNING' AND a.role IN ('operator','researcher','validator')
+              WHERE a.status='RUNNING' AND a.role IN ('operator','planner','researcher','validator')
               AND t.lease_owner!='' AND t.status NOT IN ('COMPLETED','FAILED','ESCALATED')
               AND NOT EXISTS(SELECT 1 FROM agent_reviews r WHERE r.run_id=a.id)
               ORDER BY a.id''').fetchall()

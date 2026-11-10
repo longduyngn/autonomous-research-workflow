@@ -28,7 +28,7 @@ class OpenCodeContractTests(unittest.TestCase):
         import tempfile
         from core.integrations import prepare_integrations
         from core.providers import EphemeralAgentRunner
-        for role in ('validator', 'operator', 'researcher'):
+        for role in ('validator', 'operator', 'planner'):
             with self.subTest(role=role), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 prepare_integrations(ROOT, root, root)

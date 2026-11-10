@@ -21,7 +21,7 @@ class RecordingRunner:
         failure = self.failures.pop(role, None)
         if failure:
             return AgentRunResult(role, 'fake', False, '', exit_code=1, error='limit', structured_data=failure)
-        output = {'researcher': 'brief', 'validator': 'VERDICT: PASS\nEvidence: inspected'}.get(role, 'done')
+        output = {'planner': 'brief', 'validator': 'VERDICT: PASS\nEvidence: inspected'}.get(role, 'done')
         return AgentRunResult(role, 'fake', True, output, structured_data={'usage': {'input_tokens': 10, 'output_tokens': 5}, 'model': 'm'})
 
 
@@ -55,12 +55,12 @@ class QuotaOrchestratorTests(unittest.TestCase):
         task = orch.run_task_to_completion(orch.submit_task('do it').id)
         self.assertEqual(task.status, 'COMPLETED')
         routed = {role: (provider, model) for role, provider, model in runner.calls}
-        self.assertEqual(routed['researcher'], ('codex_cli', 'gpt-6-astra'))
+        self.assertEqual(routed['planner'], ('codex_cli', 'gpt-6-astra'))
         self.assertEqual(routed['operator'], ('codex_cli', 'gpt-6.1-sol'))
         self.assertEqual(routed['communicator'], ('agy_headless_safe', 'gemini-3.8-flash-medium'))
         events = self.events('QUOTA_ROUTE')
         self.assertTrue(events)
-        payload = next(p for p in (json.loads(e['payload_json']) for e in events) if p['role'] == 'researcher')
+        payload = next(p for p in (json.loads(e['payload_json']) for e in events) if p['role'] == 'planner')
         self.assertEqual((payload['source'], payload['account'], payload['default_provider']), ('class', 'codex', 'agy_headless_safe'))
         self.assertTrue(all(e['task_id'] == task.id for e in events))
         from core.observability import task_detail
@@ -85,16 +85,17 @@ class QuotaOrchestratorTests(unittest.TestCase):
         self.assertEqual((payload['action'], payload['source']), ('wait', 'pinned'))
 
     def test_limit_error_waits_without_burning_retry_then_reroutes_after_reset(self):
-        runner = RecordingRunner(failures={'researcher': {'quota': {'exhausted': True, 'matched': 'hit your limit', 'resets_at': time.time() + 600,
-                                                                     'account': 'claude', 'provider': 'claude_cli', 'model': 'opus'}}})
+        # The planner's ordered D3 chain starts with Codex.
+        runner = RecordingRunner(failures={'planner': {'quota': {'exhausted': True, 'matched': 'hit your limit', 'resets_at': time.time() + 600,
+                                                                     'account': 'codex', 'provider': 'codex_cli', 'model': 'gpt-6-astra'}}})
         orch = self.orchestrator(runner)
         task = orch.run_task_to_completion(orch.submit_task('limited').id)
         self.assertEqual(task.status, 'WAITING_PROVIDER')
         stored = self.db.get_task(task.id)
-        self.assertEqual((stored.retry_count, orch.control.waits()[0]['dependency']), (0, 'quota:claude'))
-        self.assertFalse(orch.control.available('quota:claude'))
+        self.assertEqual((stored.retry_count, orch.control.waits()[0]['dependency']), (0, 'quota:codex'))
+        self.assertFalse(orch.control.available('quota:codex'))
         self.assertEqual(len(self.events('QUOTA_EXHAUSTED')), 1)
-        self.assertEqual([s.window for s in QuotaStore(self.db).snapshots('claude')], ['limit'])
+        self.assertEqual([s.window for s in QuotaStore(self.db).snapshots('codex')], ['limit'])
         orch.control.advance_waits()  # still cooling: no wake
         self.assertEqual(self.db.get_task(task.id).status, 'WAITING_PROVIDER')
         with self.db._connect() as c:  # the reset time passes
@@ -105,7 +106,7 @@ class QuotaOrchestratorTests(unittest.TestCase):
         self.assertNotEqual(self.db.get_task(task.id).status, 'WAITING_PROVIDER')
         resumed = orch.run_task_to_completion(task.id)
         self.assertEqual((resumed.status, resumed.retry_count), ('COMPLETED', 0))
-        self.assertEqual(runner.calls[1][:2], ('researcher', 'claude_cli'))
+        self.assertEqual(runner.calls[1][:2], ('planner', 'codex_cli'))
 
     def test_everything_exhausted_waits_for_earliest_reset(self):
         for account, reset in (('claude', 9000), ('codex', 4000), ('agy:claude', 6000), ('agy:gemini-4-argon', 8000)):
@@ -151,9 +152,9 @@ class LightRoleTests(unittest.TestCase):
     def test_simple_plan_flag_survives_parsing_and_selects_light_validator(self):
         from core.plans import parse_plan
         fence = chr(96) * 3
-        simple = parse_plan(fence + 'research_plan\n{"mode":"direct","simple":true,"checks":[]}\n' + fence)
+        simple = parse_plan(fence + 'planner_plan\n{"mode":"direct","simple":true,"checks":[]}\n' + fence)
         self.assertIs(simple['simple'], True)
-        self.assertNotIn('simple', parse_plan(fence + 'research_plan\n{"mode":"direct","simple":"yes"}\n' + fence))
+        self.assertNotIn('simple', parse_plan(fence + 'planner_plan\n{"mode":"direct","simple":"yes"}\n' + fence))
         from core.quota import QuotaRouter
         router = QuotaRouter(self.config, QuotaStore(self.db))
         task = type('T', (), {'plan_json': json.dumps(simple), 'provider_override': ''})()

@@ -78,7 +78,7 @@ class RecoveryTests(unittest.TestCase):
     def test_unregistered_timeout_gets_reasoning_before_one_notice(self):
         self.runner.run_role=lambda role,**kw:AgentRunResult(role,'fake',False,'',error='Timed out after 5s')
         first=self.orch._execute_operator(self.db.get_task(self.task.id))
-        self.assertEqual(first.status,'RESEARCHING')
+        self.assertEqual(first.status,'PLANNING')
         self.assertEqual(self.count('message_outbox'),0)
         calls=[]
         def review(role,**kw):
@@ -88,7 +88,7 @@ class RecoveryTests(unittest.TestCase):
         self.runner.run_role=review
         final=self.orch.run_task_to_completion(self.task.id)
         self.assertEqual(final.status,'WAITING_INPUT')
-        self.assertEqual([role for role,_ in calls],['researcher'])
+        self.assertEqual([role for role,_ in calls],['planner'])
         self.assertEqual(final.retry_count,0)
         self.assertEqual(self.count('message_outbox'),1)
         self.orch.supervisor.notice(final,'Missing external job identity; cannot prove stopped')
@@ -127,10 +127,10 @@ class RecoveryTests(unittest.TestCase):
                     cloud.experiment_job_resume_checkpoint({'job_id':job['id'],'checkpoint_id':checkpoint['id']})
                 next_job,_=self.store.register(self.task.id,'repaired','local',total=2)
                 self.store.observe(next_job['id'],{'completed':1,'state':'RUNNING'})
-            return AgentRunResult(role,'fake',True,'brief' if role=='researcher' else 'repaired')
+            return AgentRunResult(role,'fake',True,'brief' if role=='planner' else 'repaired')
         self.runner.run_role=run
         result=self.orch.run_task_to_completion(self.task.id)
-        self.assertEqual(calls,['researcher','operator'])
+        self.assertEqual(calls,['planner','operator'])
         self.assertEqual(result.status,'WAITING_REMOTE')
         self.assertNotEqual(result.remote_job_id,job['id'])
         self.assertEqual(self.store.get(job['id'])['state'],'RECONCILED')
@@ -272,7 +272,7 @@ class RecoveryTests(unittest.TestCase):
              patch.object(restarted.supervisor,'_consult') as consult:
             restarted.supervisor.diagnose()
             consult.assert_not_called()
-        self.assertEqual(calls,['researcher'])
+        self.assertEqual(calls,['planner'])
         self.assertEqual(self.count('recovery_episodes'),1)
         self.assertEqual(self.db.get_task(self.task.id).remote_job_id,job['id'])
 
@@ -303,15 +303,15 @@ class RecoveryTests(unittest.TestCase):
         orch.control.advance_waits()
         result=orch.run_task_to_completion(self.task.id)
         self.assertEqual(result.status,'WAITING_REMOTE')
-        self.assertEqual(calls,['researcher'])
+        self.assertEqual(calls,['planner'])
         row=ledger.ledger(limit=1)[0]
-        self.assertEqual((row['role'],row['model'],row['tokens']),('researcher','fake-model',12))
+        self.assertEqual((row['role'],row['model'],row['tokens']),('planner','fake-model',12))
 
     def test_expired_unregistered_operator_queues_readonly_reconciliation_not_replay(self):
         self.db.claim_task('expired',2,task_id=self.task.id)
         with self.db._connect() as c:c.execute('UPDATE tasks SET lease_expires=0 WHERE id=?',(self.task.id,))
         reclaimed=self.db.claim_task('replacement',2,task_id=self.task.id)
-        self.assertEqual(reclaimed.status,'RESEARCHING')
+        self.assertEqual(reclaimed.status,'PLANNING')
         self.assertEqual(reclaimed.retry_count,0)
         self.assertEqual(self.orch.recovery.active(self.task.id)['kind'],'UNKNOWN_EFFECTS')
         self.assertEqual(self.count('message_outbox'),0)
@@ -323,7 +323,7 @@ class RecoveryTests(unittest.TestCase):
             return AgentRunResult(role,'fake',True,json.dumps({'action':'needs_input','reason':'Cannot establish remote identity safely'}))
         self.runner.run_role=review
         final=self.orch.run_task_to_completion(self.task.id)
-        self.assertEqual(calls,['researcher'])
+        self.assertEqual(calls,['planner'])
         self.assertEqual(final.status,'WAITING_INPUT')
         self.assertEqual(self.count('message_outbox'),1)
 
@@ -359,7 +359,7 @@ class RecoveryTests(unittest.TestCase):
         calls=[]
         self.runner.run_role=lambda role,**kw:calls.append(role) or AgentRunResult(role,'fake',True,'not JSON')
         final=self.orch.run_task_to_completion(self.task.id)
-        self.assertEqual(calls,['researcher','researcher'])
+        self.assertEqual(calls,['planner','planner'])
         self.assertEqual(final.status,'WAITING_INPUT')
         self.assertEqual(final.retry_count,0)
         self.assertEqual(self.count('message_outbox'),1)

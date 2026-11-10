@@ -1,7 +1,7 @@
 # Conversation, research memory and resumable execution
 
 Start with README.md. The controller runs two tasks concurrently. Each task follows
-one sequential Ralph loop; the researcher decides whether it needs milestones.
+one sequential Ralph loop; the planner decides whether it needs milestones.
 
 ## Discord
 
@@ -30,7 +30,7 @@ remain inspectable from the local dashboard/CLI; ownership is not guessed.
 
 ## Role memory and review
 
-Each task has `.workflow/roles/{researcher,operator,validator,communicator}/`.
+Each task has `.workflow/roles/{planner,operator,validator,communicator}/`.
 Explicit provider sessions resume only for the same role, provider/model and
 instructions. A per-role OS lock prevents concurrent resumes. Rotation or provider
 changes clear native identity and retain portable history. Conversation front-end
@@ -43,7 +43,7 @@ role calls and never changes the original request or a running prompt. Pending
 feedback prevents a stale final report from completing the task. An outstanding
 remote job is reconciled before feedback can trigger replanning.
 
-Researcher reviews occur after verified milestones, new feedback and repeated
+Planner reviews occur after verified milestones, new feedback and repeated
 validation failures. `orchestrator.research_review_at_milestones: false` disables
 the milestone review. Existing checks, verified steps, backend and budgets remain
 preserved. A change that removes an original acceptance requirement should use a
@@ -115,15 +115,15 @@ Use `python main.py task <id>` or the read-only dashboard to inspect waits, appr
 details, plan/feedback revisions and role transcripts. Terminal state remains based
 on actual execution and validation, never on a conversation model's claim.
 
-## Recoverable researcher plan errors
+## Recoverable planner plan errors
 
 For instrumented long jobs, see [progress and W&B supervision](PROGRESS_MONITORING.md).
 Agent session expiry retains registered compute in WAITING_REMOTE; it is not
 automatically counted as an experiment failure. Downloaded artifacts and the
 original acceptance checks still gate completion.
 
-A rejected `research_plan` is returned to the researcher with the exact validation
-error and the accepted plan. The researcher chooses a correction before any
+A rejected `planner_plan` is returned to the planner with the exact validation
+error and the accepted plan. The planner chooses a correction before any
 operator work or user notification. The default is two repair attempts per
 research pass (`orchestrator.max_plan_repairs`, range 0?10). Repairs do not consume
 experiment retries or change task status. Backend, verified prefix and executable

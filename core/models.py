@@ -16,7 +16,8 @@ class TaskStatus(str, Enum):
 
     PENDING = "PENDING"
     INITIALIZING = "INITIALIZING"
-    RESEARCHING = "RESEARCHING"
+    PLANNING = "PLANNING"
+    RESEARCHING = "RESEARCHING"  # legacy stored status; read as PLANNING
     OPERATING = "OPERATING"
     VALIDATING = "VALIDATING"
     COMMUNICATING = "COMMUNICATING"
@@ -33,7 +34,8 @@ class TaskStatus(str, Enum):
 class RoleName(str, Enum):
     """Standard agent roles in the workspace."""
 
-    RESEARCHER = "researcher"
+    PLANNER = "planner"
+    RESEARCHER = "planner"  # legacy alias of PLANNER
     OPERATOR = "operator"
     VALIDATOR = "validator"
     COMMUNICATOR = "communicator"

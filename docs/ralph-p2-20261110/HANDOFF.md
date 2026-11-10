@@ -19,9 +19,10 @@
   P2.1-02 (`core/opencode_config.py`), P2.1-02b (`core/openrouter_free.py`).
 - Done also: P2.1-03 (OpenCode adapter + `parse_opencode_stream`), P2.1-04 (session resume), P2.1-05 (API usage ledger), P2.1-06 (`_run_http` HTTP errors).
 - P2.1 complete (P2.1-07 offline + live OpenRouter free smoke passed).
-- Next: P2.2-01 role-name normalisation (`core/role_names.py` canonical_role, researcher→planner alias) per plan §4.4;
-  keep `quota_routing.role_classes`, `requires`, role budgets and RoleMemory role set in sync. Note
-  `scripts/p2_autopilot.py` already tries `select('planner')` then `select('researcher')`.
+- Done also: P2.2 (researcher → planner with compatibility; D3 ordered planner chain).
+- Next: P2.6-01 optional plan-approval gate per task (D4': `plan_approval: required|none`, default none),
+  then P2.3-01 pinned AGY roles (communicator/workspace_watcher/world_watcher → gemini-3.8-flash-low, fallback
+  claude-sonnet-5-5-low → gpt-oss-120b-medium inside AGY, then no-LLM template).
 - The scheduled autopilot task is NOT installed (blocked by the session permission classifier); the user
   can install it with `python scripts/p2_autopilot.py install`.
 

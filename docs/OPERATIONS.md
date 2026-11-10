@@ -6,7 +6,7 @@ webhooks. `discord-bot` includes its own workers. `dashboard` starts no workers.
 Use one Discord listener. Restart processes after configuration/source changes.
 
 Defaults: two concurrent tasks (maximum three), three total attempts per item,
-one researcher replan after two failures, 86400 seconds per task. Set
+one planner replan after two failures, 86400 seconds per task. Set
 `max_replans: 0` to disable replanning. Replanning never resets the attempt/time
 budget. Ctrl+C stops local children; submitted remote jobs may continue.
 

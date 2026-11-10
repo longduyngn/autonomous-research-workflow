@@ -11,7 +11,7 @@ docs/ralph-next/VERIFICATION_20261104.md; current account access requires a live
 
 - Exactly three Discord channels: task-proposal for conversation/clarification and
   !task; approval list only for decisions; task log only for requested progress.
-- Communicator memory is per authenticated user/guild across tasks. Researcher,
+- Communicator memory is per authenticated user/guild across tasks. Planner,
   operator and validator memory is per task/role. Native IDs are caches; current
   DB facts and on-disk handoffs remain authoritative. Rotation writes handover.
 - Two task slots, maximum configurable three. Sequential Ralph within a task;

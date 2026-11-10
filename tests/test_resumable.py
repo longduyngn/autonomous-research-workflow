@@ -13,9 +13,9 @@ class ResumableTests(unittest.TestCase):
     def test_successful_resume_preserves_id_and_context_rotation_writes_handover(self):
         from core.models import AgentRunResult
         with tempfile.TemporaryDirectory() as tmp:
-            memory=RoleMemory(tmp,'researcher');identity={'provider':'fixture'}
+            memory=RoleMemory(tmp,'planner');identity={'provider':'fixture'}
             state=memory.load(identity);state['session_id']='stable-session'
-            memory.save(state,AgentRunResult('researcher','fixture',True,'continued',structured_data={'usage':{'input_tokens':65000}}))
+            memory.save(state,AgentRunResult('planner','fixture',True,'continued',structured_data={'usage':{'input_tokens':65000}}))
             self.assertEqual(json.loads(memory.path.read_text())['session_id'],'stable-session')
             next_state=memory.load(identity)
             self.assertEqual(next_state['session_id'],'')
@@ -23,7 +23,7 @@ class ResumableTests(unittest.TestCase):
             self.assertTrue((memory.directory/'handover.json').exists())
     def test_four_roles_keep_separate_portable_chats(self):
         with tempfile.TemporaryDirectory() as tmp:
-            roles=('communicator','operator','validator','researcher')
+            roles=('communicator','operator','validator','planner')
             cfg={'providers':{'m':{'type':'mock'}},'roles':{r:{'provider':'m'} for r in roles}}
             runner=EphemeralAgentRunner(tmp,cfg)
             for role in roles:
@@ -58,7 +58,7 @@ class ResumableTests(unittest.TestCase):
             controller=Path(__file__).resolve().parents[1]
             (root/'.agents').mkdir()
             prepare_integrations(controller,root,root)
-            cfg={'providers':{'c':{'type':'claude_cli'}},'roles':{r:{'provider':'c'} for r in ('researcher','validator')}}
+            cfg={'providers':{'c':{'type':'claude_cli'}},'roles':{r:{'provider':'c'} for r in ('planner','validator')}}
             runner=EphemeralAgentRunner(root,cfg)
             runner.instructions_root=controller
             seen=[]
@@ -71,12 +71,12 @@ class ResumableTests(unittest.TestCase):
                     f.write(json.dumps({'run_id':kw['env']['WORKFLOW_RUN_ID'],'event':'SessionStart'})+'\n')
                 return {'exit_code':0,'stdout':json.dumps({'session_id':'session-'+str(len(seen)),'result':'VERDICT: PASS\nEvidence: checked'}),'stderr':''}
             with patch('core.providers.find_executable',return_value='claude'),patch('core.providers.run_process',side_effect=process):
-                for n,role in enumerate(('researcher','researcher','validator')):
+                for n,role in enumerate(('planner','planner','validator')):
                     self.assertTrue(runner.run_role(role,'fresh state',root/f'run{n}.log').success)
             self.assertNotIn('--resume',seen[0])
             self.assertIn('session-1',seen[1])
             self.assertNotIn('--resume',seen[2])
-            memory=RoleMemory(root,'researcher')
+            memory=RoleMemory(root,'planner')
             self.assertIn('checked',memory.context())
             self.assertEqual(memory.load({'changed_provider':True})['session_id'],'')
 

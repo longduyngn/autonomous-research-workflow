@@ -10,7 +10,7 @@ flowchart LR
   Intake --> Queue[SQLite queue]
   Intake --> Chat[Scoped conversation communicator]
   Queue --> Workspace[Snapshot + input manifest]
-  Workspace --> Research[Researcher]
+  Workspace --> Research[Planner]
   Research --> Execute[Operator]
   Execute --> Checks[Executable checks]
   Checks --> Validate[Validator]
@@ -33,11 +33,11 @@ flowchart LR
 ## Ralph loop
 
 Inspect → implement one item → run checks → independently validate → checkpoint
-verified work → continue. The researcher may provide a direct brief or a
-`research_plan` block with backend, milestones and executable checks. A plain
+verified work → continue. The planner may provide a direct brief or a
+`planner_plan` block with backend, milestones and executable checks. A plain
 brief remains direct. `{python}` resolves to the controller's interpreter.
 
-The default is three total attempts per item. After two failures the researcher
+The default is three total attempts per item. After two failures the planner
 may revise the remaining strategy once. Attempts/time do not reset. Replanning
 cannot change the backend, remove executable checks or change verified steps.
 Malformed revisions escalate. Submitted/uncertain remote jobs are not replanned

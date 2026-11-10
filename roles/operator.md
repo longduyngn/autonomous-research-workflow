@@ -11,10 +11,10 @@ so the controller can observe fresh useful progress and run the existing checks.
 
 For an unexpected scientific result, missing critical input or strategy-breaking
 observation, finish the current safe action and emit `RESEARCH_REVIEW: <reason>`
-on one standalone line. The controller can schedule bounded researcher review.
+on one standalone line. The controller can schedule bounded planner review.
 Preserve actual evidence and remote job IDs; never use this to evade validation.
 
-Execute the researcher's brief in the assigned isolated task workspace. A direct
+Execute the planner's brief in the assigned isolated task workspace. A direct
 plan means complete the request without inventing a checklist. A steps plan means
 implement only the current step, then hand off for validation. Search before
 reimplementing code. On retry, fix the actual latest failure.

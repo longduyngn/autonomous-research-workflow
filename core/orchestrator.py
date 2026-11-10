@@ -1,7 +1,7 @@
 """Hybrid Event-Driven Orchestrator (State Machine Dispatcher).
 
 Routes tasks through ephemeral agents:
-  PENDING -> RESEARCHING (Researcher)
+  PENDING -> PLANNING    (Planner; legacy stored status RESEARCHING)
           -> OPERATING   (Operator)
           -> VALIDATING  (Validator)
              - If PASS: -> COMMUNICATING (Communicator) -> COMPLETED
@@ -238,7 +238,7 @@ class HybridOrchestrator:
             self.db.log_event('FEEDBACK_APPLIED', 'orchestrator',
                               f'Feedback revision {task.feedback_revision}', task_id=task.id)
         status = task.status
-        role = {'PENDING':'researcher','RESEARCHING':'researcher','OPERATING':'operator',
+        role = {'PENDING':'planner','PLANNING':'planner','RESEARCHING':'planner','OPERATING':'operator',
                 'VALIDATING':'validator','COMMUNICATING':'communicator'}.get(status)
         if role:
             decision = self._route(task, role) if self.quota else None
@@ -251,11 +251,11 @@ class HybridOrchestrator:
                     return self.control.wait(task.id,'PROVIDER',status,'Configured provider is cooling down',provider)
 
         if status == TaskStatus.PENDING.value:
-            task = self._transition(task.id, TaskStatus.RESEARCHING, RoleName.RESEARCHER.value)
-            return self._execute_researcher(task)
+            task = self._transition(task.id, TaskStatus.PLANNING, RoleName.PLANNER.value)
+            return self._execute_planner(task)
 
-        if status == TaskStatus.RESEARCHING.value:
-            return self._execute_researcher(task)
+        if status in (TaskStatus.PLANNING.value, TaskStatus.RESEARCHING.value):
+            return self._execute_planner(task)
 
         if status == TaskStatus.OPERATING.value:
             return self._execute_operator(task)
@@ -364,7 +364,7 @@ class HybridOrchestrator:
         current=self.db.get_task(task.id)
         if current.status in {'COMPLETED','FAILED','ESCALATED'}:return current
         self.recovery.phase(episode,'WAIT_INPUT',reason)
-        waited=self.control.wait(task.id,'INPUT','RESEARCHING',reason,episode['id'])
+        waited=self.control.wait(task.id,'INPUT','PLANNING',reason,episode['id'])
         self.supervisor.notice(current,reason,episode['id'])
         return waited
 
@@ -376,7 +376,7 @@ class HybridOrchestrator:
             return self._recovery_wait(current,episode,'Recovery budget exhausted; '+reason)
         self.recovery.queue(episode)
         self.db.update_task(task.id,review_reason='Recovery episode '+episode['id']+': '+reason)
-        return self._transition(task.id,TaskStatus.RESEARCHING,'researcher')
+        return self._transition(task.id,TaskStatus.PLANNING,'planner')
 
     def _execute_recovery_review(self,task,episode):
         """UNKNOWN effects get bounded reasoning, never a mutating operator replay."""
@@ -412,7 +412,7 @@ class HybridOrchestrator:
                 'Observe means one more bounded controller status observation of the SAME registered job. '
                 'Without a registered job identity, observation cannot authorize replay.\n'+json.dumps(packet))
         try:
-            result=self._spawn_and_log(task,'researcher',prompt,attempt=claimed['reviews'],recovery_packet=packet)
+            result=self._spawn_and_log(task,'planner',prompt,attempt=claimed['reviews'],recovery_packet=packet)
         except Exception as exc:
             from core.approvals import TaskDeferred
             if isinstance(exc,TaskDeferred):
@@ -425,7 +425,7 @@ class HybridOrchestrator:
         except (ValueError,TypeError):valid=False;decision={}
         if not valid and claimed['reviews']<limit:
             if self.recovery.finish_review(claimed,owner,'REVIEW_QUEUED','Malformed/failed review; bounded same-role correction'):
-                return self._transition(task.id,TaskStatus.RESEARCHING,'researcher')
+                return self._transition(task.id,TaskStatus.PLANNING,'planner')
         observe=valid and decision['action']=='observe' and bool(task.remote_job_id)
         reason=safe_text(decision.get('reason','Recovery review failed or malformed; existing effects remain unknown'))
         phase='VERIFYING' if observe else 'WAIT_INPUT'
@@ -435,7 +435,7 @@ class HybridOrchestrator:
             return self.control.wait(task.id,'REMOTE','WAITING_REMOTE','Recovery observation scheduled; '+reason,task.remote_job_id,delay=30)
         return self._recovery_wait(task,claimed,reason)
 
-    def _execute_researcher(self, task: TaskRecord) -> TaskRecord:
+    def _execute_planner(self, task: TaskRecord) -> TaskRecord:
         episode=self.recovery.active(task.id)
         if episode and task.remote_job_id:
             job=self.supervisor.store.get(task.remote_job_id,task.id)
@@ -453,7 +453,7 @@ class HybridOrchestrator:
             episode=claimed
         else:
             episode=None
-        role = RoleName.RESEARCHER.value
+        role = RoleName.PLANNER.value
         context_text = self._context(task)
         prompt = (
             f"Task ID: #{task.id}\n"
@@ -461,9 +461,10 @@ class HybridOrchestrator:
             f"Context Log File: {task.context_log_path}\n\n"
             f"### Current Task Context Log\n"
             f"{context_text}\n\n"
-            f"### Instructions for Researcher\n"
+            f"### Instructions for Planner\n"
             f"Investigate the user's request, inspect relevant files or information, "
-            f"and produce a concise Research & Execution Plan for the Operator agent."
+            f"and produce a concise execution plan for the Operator agent: specification, measurable "
+            f"acceptance criteria and bounded Ralph work items. Do not implement."
         )
         if task.replan_count or task.feedback_revision or task.review_reason:
             prompt += (f"\nResearch review event: {task.review_reason or 'Repeated validation failures'}. Diagnose the actual cause. "
@@ -483,17 +484,17 @@ class HybridOrchestrator:
                 raise
             if not result.success:
                 if episode:
-                    reason='Recovery researcher failed: '+(result.error or 'unavailable')
+                    reason='Recovery planner failed: '+(result.error or 'unavailable')
                     if self.recovery.finish_review(episode,getattr(self._worker_local,'owner',None),'REVIEW_QUEUED',reason):
                         if episode['reviews']<self.config.get('monitoring',{}).get('max_recovery_reviews',2):
-                            return self._transition(task.id,TaskStatus.RESEARCHING,'researcher')
+                            return self._transition(task.id,TaskStatus.PLANNING,'planner')
                         return self._recovery_wait(task,episode,reason)
                     return self.db.get_task(task.id)
-                return self._fail_or_escalate(task, role, result.error or "Researcher failed.")
+                return self._fail_or_escalate(task, role, result.error or "Planner failed.")
 
             try:
-                if repair and not re.search(r"```research_plan\s*\n.*?```", result.output, re.DOTALL):
-                    raise ValueError('A repaired response must include a complete research_plan block')
+                if repair and not re.search(r"```(?:planner_plan|research_plan)\s*\n.*?```", result.output, re.DOTALL):
+                    raise ValueError('A repaired response must include a complete planner_plan block')
                 plan = parse_plan(result.output)
                 if json.loads(task.plan_json):
                     previous = json.loads(task.plan_json)
@@ -515,11 +516,11 @@ class HybridOrchestrator:
                                   payload={"repair": repair, "repair_limit": repair_limit})
                 if repair == repair_limit:
                     return self._fail_or_escalate(task, role,
-                        f"{reason}; researcher exhausted {repair_limit} repair attempts")
+                        f"{reason}; planner exhausted {repair_limit} repair attempts")
                 prompt += (
                     "\nController rejected your previous plan: " + reason +
                     "\nResolve this recoverable plan/format problem yourself and return a complete "
-                    "corrected research_plan block. Do not execute implementation or remote jobs. "
+                    "corrected planner_plan block. Do not execute implementation or remote jobs. "
                     "Preserve the requested backend, verified prefix and existing acceptance checks. "
                     "Every executable check requires a nonempty argv array of strings; describe "
                     "non-executable criteria in instructions. Do not weaken verification. "
@@ -545,6 +546,8 @@ class HybridOrchestrator:
             atomic_json(state/'plans'/f'plan_{task.plan_revision+1:04d}.json',
                         {'revision':task.plan_revision+1,'reason':task.review_reason,'plan':plan})
         return self._transition(task.id, TaskStatus.OPERATING, RoleName.OPERATOR.value)
+
+    _execute_researcher = _execute_planner  # legacy name
 
     def _execute_operator(self, task: TaskRecord) -> TaskRecord:
         role = RoleName.OPERATOR.value
@@ -586,7 +589,7 @@ class HybridOrchestrator:
             f"{context_text}\n\n"
             f"### Instructions for Operator\n"
             f"Execute the required changes or operations in the workspace based on the "
-            f"User Request and Researcher Notes. If the plan mode is steps, implement only "
+            f"User Request and Planner Notes. If the plan mode is steps, implement only "
             f"the item at step_index={task.step_index}; otherwise execute directly. "
             f"Summarize actions and preserve experiment artifacts and evidence."
         )
@@ -612,7 +615,7 @@ class HybridOrchestrator:
         if not result.success and 'Timed out after' in (result.error or ''):
             self.db.log_event('AGENT_SESSION_EXPIRED','supervisor',
                 'Operator session ended without a registered job; no experiment retry or success inferred',task_id=task.id)
-            reason='Operator timeout with unregistered effects; reconcile artifacts/processes before resuming. Researcher diagnosis required.'
+            reason='Operator timeout with unregistered effects; reconcile artifacts/processes before resuming. Planner diagnosis required.'
             with self.db._connect() as c:
                 run=c.execute("SELECT id FROM agent_runs WHERE task_id=? AND role='operator' ORDER BY id DESC LIMIT 1",(task.id,)).fetchone()
             episode=self.recovery.open(task,'UNKNOWN_EFFECTS','agent-'+str(run['id'] if run else task.step_index),reason=reason)
@@ -634,7 +637,7 @@ class HybridOrchestrator:
             if task.event_review_count>=int(self.config.get('orchestrator',{}).get('max_event_reviews',2)):
                 return self._fail_or_escalate(task,role,'Research event review budget exhausted: '+review[1])
             self.db.update_task(task.id,event_review_count=task.event_review_count+1,review_reason='Operator reported: '+review[1])
-            return self._transition(task.id,TaskStatus.RESEARCHING,'researcher')
+            return self._transition(task.id,TaskStatus.PLANNING,'planner')
         marker = re.search(r"^WAIT_FOR_JOB: ([0-9a-f]{32})\s*$", result.output, re.MULTILINE)
         if marker:
             self.db.update_task(task.id, remote_job_id=marker.group(1))
@@ -656,7 +659,7 @@ class HybridOrchestrator:
                 return self._transition(task.id,TaskStatus.OPERATING,'operator')
             if time.time()>job['budget_until']:
                 reason='Compute budget exhausted; reconcile the saved checkpoint and resource before authorizing more compute'
-                waited=self.control.wait(task.id,'INPUT','RESEARCHING',reason,job['id'])
+                waited=self.control.wait(task.id,'INPUT','PLANNING',reason,job['id'])
                 self.supervisor.notice(task,reason)
                 return waited
             if job['backend']=='colab' and job['state']=='REGISTERED':
@@ -755,7 +758,7 @@ class HybridOrchestrator:
                 self.db.update_task(task.id, step_index=task.step_index + 1, retry_count=0, validation_feedback="")
                 if self.config.get('orchestrator',{}).get('research_review_at_milestones',True):
                     self.db.update_task(task.id,review_reason=f'Milestone {task.step_index+1} independently verified; choose next sequential action')
-                    return self._transition(task.id,TaskStatus.RESEARCHING,RoleName.RESEARCHER.value)
+                    return self._transition(task.id,TaskStatus.PLANNING,RoleName.PLANNER.value)
                 return self._transition(task.id, TaskStatus.OPERATING, RoleName.OPERATOR.value)
             self.db.update_task(task.id, outcome="COMPLETED")
             self.db.log_event(
@@ -1090,9 +1093,9 @@ class HybridOrchestrator:
                     and not task.remote_job_id):
                 self.db.update_task(task.id, replan_count=task.replan_count + 1,review_reason='Repeated validation failures')
                 self.db.log_event("TASK_REPLAN_SCHEDULED", "orchestrator",
-                    "Repeated failure routed to researcher within the remaining attempt budget",
+                    "Repeated failure routed to planner within the remaining attempt budget",
                     task_id=task.id, payload={"attempts_used": next_retry, "reason": reason[:1000]})
-                return self._transition(task.id, TaskStatus.RESEARCHING, RoleName.RESEARCHER.value)
+                return self._transition(task.id, TaskStatus.PLANNING, RoleName.PLANNER.value)
             self.db.log_event(
                 event_type="TASK_RETRY_SCHEDULED",
                 actor="orchestrator",

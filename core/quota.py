@@ -754,8 +754,13 @@ class QuotaRouter:
                 blockers[entry['account']] = info['until']
             return entry, info
 
+        ordered = name in (self.cfg.get('ordered_classes') or [])
+
         def rank(items, index):
             entry, info = items
+            if ordered:
+                # Strict user-defined chain: first usable entry wins; no sticky/reset reordering.
+                return (index,)
             sticky = prefer is not None and (entry['provider'], entry['model']) == tuple(prefer) and self.cfg['sticky_routes']
             return (not sticky, info['last_reset'] is None, -(info['last_reset'] or 0),
                     -(info['remaining'] if info['remaining'] is not None else 100.0), index)

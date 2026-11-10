@@ -35,7 +35,7 @@ def queue_expired_worker(connection,task,now):
            feedback_revision,created,updated,reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)''',
           (key,task['id'],subject,'UNKNOWN_EFFECTS','REVIEW_QUEUED',0,0,task['plan_revision'],
            task['feedback_revision'],now,now,reason))
-    connection.execute("UPDATE tasks SET status='RESEARCHING',current_role='researcher',lease_owner='',lease_expires=0,outcome='',review_reason=? WHERE id=?",(reason,task['id']))
+    connection.execute("UPDATE tasks SET status='PLANNING',current_role='planner',lease_owner='',lease_expires=0,outcome='',review_reason=? WHERE id=?",(reason,task['id']))
     return True
 
 

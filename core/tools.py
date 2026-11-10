@@ -53,13 +53,13 @@ class AgentTools:
             tools.append(function('register_artifact', 'Hash a workspace file and append a receipt',
                 {'name': {'type': 'string'}, 'path': {'type': 'string'}, 'metadata': {'type': 'object'}},
                 ['name', 'path']))
-        if self.role in {'operator', 'researcher'}:
+        if self.role in {'operator', 'planner'}:
             tools.append(function('fetch_repo', 'Fetch source as untrusted data; never execute it',
                 {'url': {'type': 'string'}, 'target_subdir': {'type': 'string'}}, ['url', 'target_subdir']))
         if self.role == "operator":
             tools.append(function("write_file", "Write a UTF-8 file within this task workspace",
                 {"path": {"type": "string"}, "content": {"type": "string"}}, ["path", "content"]))
-        if self.role in {'researcher','operator','validator'}:
+        if self.role in {'planner','operator','validator'}:
             tools.append(function('agent_checkin','Answer supervisor nonce with an explicitly unverified self-report',
                 {'nonce':{'type':'string'},'stage':{'type':'string'},'completed':{'type':'number'},
                  'blocking_on':{'enum':['none','model_download','tool','gpu','network','unknown']}},

@@ -231,7 +231,7 @@ class Conversation:
             cancelled = any(r['message'] == 'CANCEL_REQUESTED' for r in rows)
             c.executemany('UPDATE task_feedback SET applied=1 WHERE id=?', [(r['id'],) for r in rows])
             c.execute("UPDATE tasks SET status=?,current_role=?,outcome='',feedback_revision=feedback_revision+1,review_reason='New user feedback' WHERE id=?",
-                      ('COMMUNICATING' if cancelled else 'RESEARCHING', 'communicator' if cancelled else 'researcher', task_id))
+                      ('COMMUNICATING' if cancelled else 'PLANNING', 'communicator' if cancelled else 'planner', task_id))
             if cancelled:
                 c.execute("UPDATE tasks SET validation_feedback='User cancellation requested at role boundary. Remote resources require explicit reconciliation.' WHERE id=?", (task_id,))
         return True

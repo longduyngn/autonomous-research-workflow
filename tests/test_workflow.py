@@ -15,7 +15,7 @@ class FakeRunner:
     def run_role(self, role, **kwargs):
         self.calls.append(role)
         failed = self.error and role == "validator"
-        output = self.plan if role == "researcher" else self.verdict if role == "validator" else "done"
+        output = self.plan if role == "planner" else self.verdict if role == "validator" else "done"
         return AgentRunResult(role, "fake", not failed, output, error="Rate limit exceeded" if failed else None)
 
 
@@ -67,27 +67,27 @@ class WorkflowTests(unittest.TestCase):
 
     def test_optional_steps(self):
         plan = {"mode": "steps", "steps": [{"instructions": "prepare"}, {"instructions": "experiment"}]}
-        runner = FakeRunner(plan="```research_plan\n" + json.dumps(plan) + "\n```")
+        runner = FakeRunner(plan="```planner_plan\n" + json.dumps(plan) + "\n```")
         final = self.run_case(runner)
         self.assertEqual(final.status, "COMPLETED")
         self.assertEqual(final.step_index, 1)
         self.assertEqual(runner.calls.count("operator"), 2)
 
     def test_malformed_plan_escalates_only_after_researcher_repairs(self):
-        runner = FakeRunner(plan='```research_plan\n{"mode":"steps"}\n```')
+        runner = FakeRunner(plan='```planner_plan\n{"mode":"steps"}\n```')
         self.assertEqual(self.run_case(runner).status, "ESCALATED")
-        self.assertEqual(runner.calls.count('researcher'), 3)
+        self.assertEqual(runner.calls.count('planner'), 3)
         self.assertNotIn('operator', runner.calls)
 
     def test_plan_format_repair_stays_in_research_and_preserves_budget(self):
         class RepairRunner(FakeRunner):
             def run_role(self, role, **kwargs):
-                if role == 'researcher':
+                if role == 'planner':
                     if self.calls:
                         self.repair_prompt = kwargs['task_prompt']
-                        self.plan = '```research_plan\n{"mode":"direct","checks":[]}\n```'
+                        self.plan = '```planner_plan\n{"mode":"direct","checks":[]}\n```'
                     else:
-                        self.plan = '```research_plan\n{"mode":"direct","checks":[{"description":"verify results"}]}\n```'
+                        self.plan = '```planner_plan\n{"mode":"direct","checks":[{"description":"verify results"}]}\n```'
                 return super().run_role(role, **kwargs)
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -95,10 +95,10 @@ class WorkflowTests(unittest.TestCase):
             runner = RepairRunner()
             orch = HybridOrchestrator(root, {}, db, ContextLogManager(root/'logs'), runner)
             task = orch.submit_task('Research')
-            task = db.update_task(task.id, status='RESEARCHING', retry_count=2)
-            final = orch._execute_researcher(task)
+            task = db.update_task(task.id, status='PLANNING', retry_count=2)
+            final = orch._execute_planner(task)
             self.assertEqual((final.status, final.retry_count, final.outcome), ('OPERATING', 2, ''))
-            self.assertEqual(runner.calls, ['researcher', 'researcher'])
+            self.assertEqual(runner.calls, ['planner', 'planner'])
             self.assertIn('nonempty argv', runner.repair_prompt)
             self.assertIn('description', runner.repair_prompt)
             with db._connect() as c:
@@ -112,15 +112,15 @@ class WorkflowTests(unittest.TestCase):
             def run_role(self, role, **kwargs):
                 if self.calls:
                     candidate = {**old, 'steps':[old['steps'][0], {"instructions":"fixed", "checks":[]}]}
-                    self.plan = '```research_plan\n'+json.dumps(candidate)+'\n```'
+                    self.plan = '```planner_plan\n'+json.dumps(candidate)+'\n```'
                 return super().run_role(role, **kwargs)
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); db = WorkspaceDatabase(root/'db')
-            runner = RepairRunner(plan='```research_plan\n{"mode":"direct","backend":"local"}\n```')
+            runner = RepairRunner(plan='```planner_plan\n{"mode":"direct","backend":"local"}\n```')
             orch = HybridOrchestrator(root, {}, db, ContextLogManager(root/'logs'), runner)
-            task = db.update_task(orch.submit_task('Research').id, status='RESEARCHING',
+            task = db.update_task(orch.submit_task('Research').id, status='PLANNING',
                                   plan_json=json.dumps(old), step_index=1, retry_count=2)
-            result = orch._execute_researcher(task)
+            result = orch._execute_planner(task)
             plan = json.loads(result.plan_json)
             self.assertEqual(result.status, 'OPERATING')
             self.assertEqual(plan['backend'], 'colab')

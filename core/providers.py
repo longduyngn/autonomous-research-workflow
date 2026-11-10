@@ -12,7 +12,7 @@ from core.models import AgentRunResult
 from core.processes import run_process
 from core.executables import find_executable
 
-ACTION_ROLES = {"researcher", "operator", "validator"}
+from core.role_names import ACTION_ROLES  # planner, operator, validator
 
 
 def claude_stream_result(lines):
@@ -525,7 +525,7 @@ class EphemeralAgentRunner:
             stale.unlink(missing_ok=True)
         supervision = {}
         options = self.config.get('monitoring', {})
-        if (options.get('enabled', True) and role in {'operator','researcher','validator'}
+        if (options.get('enabled', True) and role in ACTION_ROLES
                 and env.get('WORKFLOW_DB_PATH') and env.get('WORKFLOW_TASK_ID')):
             from core.supervision import extension_for_progress
             hard = float(options.get('max_agent_seconds',21600))

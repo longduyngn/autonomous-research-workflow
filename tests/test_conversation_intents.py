@@ -139,7 +139,7 @@ class NaturalLanguageIntakeTests(unittest.TestCase):
         self.assertTrue(self.chat.apply_feedback(task_id))
         task=self.db.get_task(task_id)
         self.assertEqual(task.feedback_revision,1)
-        self.assertEqual(task.current_role,'researcher')
+        self.assertEqual(task.current_role,'planner')
         self.assertEqual(task.user_prompt,'original wording')
         self.assertEqual(self.chat.feedback(task_id)[0]['message'],message)
         self.assertFalse(self.chat.apply_feedback(task_id))
@@ -258,12 +258,12 @@ class NaturalLanguageIntakeTests(unittest.TestCase):
 
     def test_natural_status_uses_scoped_controller_facts(self):
         task_id=self.send('!task parser baseline','own')['task_id']
-        self.db.update_task(task_id,status='RESEARCHING')
+        self.db.update_task(task_id,status='PLANNING')
         self.chat.reply=lambda *args:intent('status',task_id,reply='COMPLETED: fabricated')
         response=self.send(f'How is task #{task_id} going?','status')['response']
-        self.assertIn('RESEARCHING',response)
+        self.assertIn('PLANNING',response)
         self.assertNotIn('fabricated',response)
-        self.assertEqual(self.db.get_task(task_id).status,'RESEARCHING')
+        self.assertEqual(self.db.get_task(task_id).status,'PLANNING')
 
     def test_stale_intake_owner_cannot_commit_new_model_proposal(self):
         def stale_reply(*args):

@@ -100,7 +100,7 @@ class ProviderTests(unittest.TestCase):
 
     def test_permissions_and_path_escape(self):
         with tempfile.TemporaryDirectory() as tmp:
-            for role in ["researcher", "validator"]:
+            for role in ["planner", "validator"]:
                 with self.assertRaises(PermissionError):
                     AgentTools(tmp, role).call("write_file", {"path": "a", "content": "x"})
             for path in ["../outside", ".env", ".git/config"]:
@@ -110,8 +110,8 @@ class ProviderTests(unittest.TestCase):
     def test_missing_cli_is_actionable(self):
         with tempfile.TemporaryDirectory() as tmp:
             cfg = {"providers": {"missing": {"type": "codex_cli", "executable": "nonexistent-workflow-agent"}},
-                   "roles": {"researcher": {"provider": "missing"}}}
-            result = EphemeralAgentRunner(tmp, cfg).run_role("researcher", "task")
+                   "roles": {"planner": {"provider": "missing"}}}
+            result = EphemeralAgentRunner(tmp, cfg).run_role("planner", "task")
             self.assertFalse(result.success)
             self.assertIn("not installed", result.error)
 

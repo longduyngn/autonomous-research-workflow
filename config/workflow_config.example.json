@@ -5,7 +5,7 @@
   "role_turn_budget": {
     "communicator": 5,
     "validator": 15,
-    "researcher": 25,
+    "planner": 25,
     "operator": 35,
     "guardian": 20
   },
@@ -199,13 +199,13 @@
     }
   },
   "roles": {
-    "researcher": {
+    "planner": {
       "provider": "agy_headless_safe",
       "model": "",
       "effort": "high",
-      "prompt_file": "roles/researcher.md",
+      "prompt_file": "roles/planner.md",
       "timeout_seconds": 1800,
-      "description": "Gathers workspace context, reads files/docs, and prepares an implementation brief.",
+      "description": "Plans the task: specification, measurable acceptance criteria and bounded Ralph work items (formerly researcher).",
       "tier": "research"
     },
     "operator": {
@@ -437,6 +437,20 @@
           "provider": "agy_headless_safe",
           "model": "gemini-3.8-flash-low"
         }
+      ],
+      "planner": [
+        {
+          "provider": "codex_cli",
+          "model": "gpt-6-astra"
+        },
+        {
+          "provider": "claude_cli",
+          "model": "opus"
+        },
+        {
+          "provider": "agy_headless_safe",
+          "model": "gemini-4-argon-high"
+        }
       ]
     },
     "reserve": {
@@ -460,7 +474,7 @@
       ]
     },
     "role_classes": {
-      "researcher": "frontier",
+      "planner": "planner",
       "operator": "worker",
       "validator": "worker",
       "communicator": "light",
@@ -469,7 +483,10 @@
       "world_watcher": "light"
     },
     "requires": {},
-    "workarounds": {}
+    "workarounds": {},
+    "ordered_classes": [
+      "planner"
+    ]
   },
   "monitoring": {
     "enabled": true,

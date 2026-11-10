@@ -3,7 +3,7 @@
 Each role has its own provider, model, effort, timeout and tier. For example:
 
 ```powershell
-python main.py configure-role researcher --provider claude_cli --model opus --effort high
+python main.py configure-role planner --provider claude_cli --model opus --effort high
 python main.py configure-role operator --provider codex_cli --effort medium
 python main.py configure-role validator --provider agy_headless_auto --effort medium
 python main.py configure-role communicator --provider openrouter
@@ -44,7 +44,7 @@ workflow hooks; its saved controller evidence is labeled accordingly.
 
 The 2026-11-10 continuation explicitly retains soft budgets. Claude operational
 launchers do not pass `--max-turns`; role defaults remain 5/15/25/35/20 for
-communicator/validator/researcher/operator/guardian. Communicator and guardian
+communicator/validator/planner/operator/guardian. Communicator and guardian
 Claude sessions expose Read/Glob/Grep only. AGY communicator always uses plan
 mode, denies command/write/MCP actions and cannot enable skip-permissions.
 
@@ -88,7 +88,7 @@ for reconciliation, rather than interrupting work or claiming cleanup succeeded.
 This path has fake-bridge tests; no live GPU acceptance was performed.
 
 `role_turn_budget` (legacy key `role_max_turns`; defaults communicator 5, validator 15,
-researcher 25, operator 35) is guidance, not a hard stop. Every role prompt carries the
+planner 25, operator 35) is guidance, not a hard stop. Every role prompt carries the
 budget and asks the agent to wrap up and write a checkpoint/handoff once it passes it.
 Claude runs get no `--max-turns` flag. When a run uses more turns than its budget, its
 evidence gets `turn_budget_exceeded` and the controller logs a `TURN_BUDGET_EXCEEDED`
@@ -130,7 +130,7 @@ For direct API access, configure `OPENROUTER_API_KEY` and tier model variables,
 then select `openrouter` per role. `free_only: true` constrains routing to zero
 prompt/completion prices; unavailable/rate-limited routes fail with no paid
 fallback. This constraint does not govern independent OpenCode requests: select
-your free model there explicitly. Execution models need working tool calls. API researchers can read paginated PDF text with `read_document` and continue long text files with `read_file(start_char=...)`; image-only pages need separate visual/OCR tooling.
+your free model there explicitly. Execution models need working tool calls. API planners can read paginated PDF text with `read_document` and continue long text files with `read_file(start_char=...)`; image-only pages need separate visual/OCR tooling.
 
 ## Codex checks
 

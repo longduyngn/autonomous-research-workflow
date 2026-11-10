@@ -20,7 +20,7 @@ class ExecutionTests(unittest.TestCase):
             root = Path(tmp)
             db = WorkspaceDatabase(root / "storage/db.sqlite")
             plan = {"mode": "direct", "checks": [{"argv": ["{python}", "-c", "raise SystemExit(1)"]}]}
-            runner = FakeRunner(plan="```research_plan\n" + json.dumps(plan) + "\n```")
+            runner = FakeRunner(plan="```planner_plan\n" + json.dumps(plan) + "\n```")
             cfg = {"isolation": {"enabled": False}, "orchestrator": {"max_attempts": 2}}
             orch = HybridOrchestrator(root, cfg, db, ContextLogManager(root / "storage/logs"), runner)
             self.assertEqual(orch.run_task_to_completion(orch.submit_task("experiment").id).status, "ESCALATED")
@@ -35,8 +35,8 @@ class ExecutionTests(unittest.TestCase):
 from pathlib import Path
 role=sys.argv[1]
 assert Path(sys.argv[2]).exists()
-if role=='researcher':
- print('```research_plan\\n'+json.dumps({'mode':'direct','checks':[{'argv':['{python}','-c',"from pathlib import Path; assert Path('result.txt').read_text() == '42'"]}]})+'\\n```')
+if role=='planner':
+ print('```planner_plan\\n'+json.dumps({'mode':'direct','checks':[{'argv':['{python}','-c',"from pathlib import Path; assert Path('result.txt').read_text() == '42'"]}]})+'\\n```')
 elif role=='operator':
  Path('result.txt').write_text('42'); print('Created result.txt')
 elif role=='validator':
@@ -44,7 +44,7 @@ elif role=='validator':
 else: print('Completed; result.txt contains 42')
 ''', encoding="utf-8")
             cfg = {"providers": {"fixture": {"type": "custom_cli", "command_template": [sys.executable, str(agent), "{role}", "{prompt_file}"]}},
-                   "roles": {r: {"provider": "fixture"} for r in ["researcher", "operator", "validator", "communicator"]}}
+                   "roles": {r: {"provider": "fixture"} for r in ["planner", "operator", "validator", "communicator"]}}
             db = WorkspaceDatabase(root / "storage/db.sqlite")
             orch = HybridOrchestrator(root, cfg, db, ContextLogManager(root / "storage/logs"), EphemeralAgentRunner(root, cfg))
             final = orch.run_task_to_completion(orch.submit_task("Save and verify 42").id)
@@ -86,8 +86,8 @@ else: print('Completed; result.txt contains 42')
             agent = root / "blocked_fixture.py"
             agent.write_text('''import sys, json
 role = sys.argv[1]
-if role == 'researcher':
-    print('```research_plan\\n' + json.dumps({'mode': 'direct', 'checks': [{'argv': ['{python}', '-c', 'print("ok")']}]}) + '\\n```')
+if role == 'planner':
+    print('```planner_plan\\n' + json.dumps({'mode': 'direct', 'checks': [{'argv': ['{python}', '-c', 'print("ok")']}]}) + '\\n```')
 elif role == 'operator':
     print('BLOCKED: Blocked before inspection by the local execution environment (windows sandbox: setup refresh had errors).')
 else:
@@ -97,7 +97,7 @@ else:
                 "isolation": {"enabled": False},
                 "orchestrator": {"max_attempts": 1},
                 "providers": {"fixture": {"type": "custom_cli", "command_template": [sys.executable, str(agent), "{role}", "{prompt_file}"]}},
-                "roles": {r: {"provider": "fixture"} for r in ["researcher", "operator", "validator", "communicator"]},
+                "roles": {r: {"provider": "fixture"} for r in ["planner", "operator", "validator", "communicator"]},
             }
             db = WorkspaceDatabase(root / "storage/db.sqlite")
             orch = HybridOrchestrator(root, cfg, db, ContextLogManager(root / "storage/logs"), EphemeralAgentRunner(root, cfg))

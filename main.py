@@ -50,7 +50,7 @@ def load_config() -> Dict[str, Any]:
 
 def save_config(config):
     from core.configuration import validate_config
-    validate_config(config)
+    config = validate_config(config)  # persists canonical role names
     temporary = CONFIG_PATH.with_suffix(".json.tmp")
     temporary.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
     temporary.replace(CONFIG_PATH)
@@ -331,6 +331,8 @@ def cmd_logs(args: argparse.Namespace) -> None:
 
 
 def cmd_set_role_provider(args: argparse.Namespace) -> None:
+    from core.role_names import canonical_role
+    args.role = canonical_role(args.role)
     config = load_config()
     roles = config.get("roles", {})
     providers = config.get("providers", {})
@@ -477,16 +479,18 @@ def main() -> None:
     p_archive.set_defaults(func=archive)
 
     p_set = sub.add_parser("set-role-provider", help="Legacy provider command; uses the same configuration validation as configure-role")
-    p_set.add_argument("role", help="Role name (researcher/operator/validator/communicator/workspace_watcher/world_watcher)")
+    p_set.add_argument("role", help="Role name (planner/operator/validator/communicator/workspace_watcher/world_watcher; legacy researcher accepted)")
     p_set.add_argument("provider", help="Provider name from config/workflow_config.json")
     p_set.set_defaults(func=cmd_set_role_provider)
 
     def configure_role(args):
         config = load_config()
+        from core.role_names import canonical_role
+        args.role = canonical_role(args.role)
         if args.role not in config["roles"] or args.provider not in config["providers"]:
             raise ValueError("Unknown role/provider; inspect config/workflow_config.json")
         kind = config["providers"][args.provider]["type"]
-        if args.role in {"researcher", "operator", "validator"} and kind == "gemini_http":
+        if args.role in {"planner", "researcher", "operator", "validator"} and kind == "gemini_http":
             raise ValueError("This text-only provider cannot run an action role")
         config["roles"][args.role].update(provider=args.provider, model=args.model or "")
         if args.effort:

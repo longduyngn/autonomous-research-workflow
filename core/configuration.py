@@ -1,16 +1,20 @@
 """Validate controller settings without reading credential files."""
 import math
 
+from core.role_names import ACTION_ROLES, canonical_role, normalize_config
+
 # Soft per-role turn budgets: prompt guidance plus an over-budget signal. They never
 # stop a run; wall-clock timeouts and progress supervision remain the hard limits.
-ROLE_TURN_BUDGET = {'communicator': 5, 'validator': 15, 'researcher': 25,
+ROLE_TURN_BUDGET = {'communicator': 5, 'validator': 15, 'planner': 25,
                     'operator': 35, 'guardian': 20}
 ROLE_MAX_TURNS = ROLE_TURN_BUDGET  # legacy name
 
 
 def role_turn_budget(config, role):
     # `role_max_turns` is the legacy key; `role_turn_budget` wins when both exist.
-    merged = {**config.get('role_max_turns', {}), **config.get('role_turn_budget', {})}
+    role = canonical_role(role)
+    merged = {canonical_role(k): v for k, v in config.get('role_max_turns', {}).items()}
+    merged.update({canonical_role(k): v for k, v in config.get('role_turn_budget', {}).items()})
     value = merged.get(role, ROLE_TURN_BUDGET.get(role, 15))
     if type(value) is not int or not 1 <= value <= 1000:
         raise ValueError('role_turn_budget must contain integers between 1 and 1000')
@@ -23,6 +27,7 @@ role_max_turns = role_turn_budget  # legacy name
 def validate_config(config):
     if not isinstance(config, dict):
         raise ValueError("Workflow config must be a JSON object")
+    config = normalize_config(config)
     limits = {}
     for key in ('role_max_turns', 'role_turn_budget'):
         if not isinstance(config.get(key, {}), dict):
@@ -69,7 +74,7 @@ def validate_config(config):
         if int(settings.get("timeout_seconds", 600)) < 1:
             raise ValueError(f"Role timeout must be positive: {role}")
         provider = providers[settings["provider"]]
-        if role in {"researcher", "operator", "validator"}:
+        if role in ACTION_ROLES:
             if provider.get("type") == "gemini_http":
                 raise ValueError(f"{role} requires a tool-capable provider")
             if provider.get("type") == "http_llm" and not provider.get("supports_tools"):
@@ -118,6 +123,9 @@ def validate_quota_routing(config):
         entries('reserve.' + name, items)
     for account, items in block.get('workarounds', {}).items():
         entries('workarounds.' + account, items)
+    ordered = block.get('ordered_classes', [])
+    if not isinstance(ordered, list) or any(name not in classes for name in ordered):
+        raise ValueError('quota_routing.ordered_classes must list configured class names')
     for role, name in block.get('role_classes', {}).items():
         if role not in roles or name not in classes:
             raise ValueError(f'quota_routing.role_classes maps unknown role/class: {role} -> {name}')

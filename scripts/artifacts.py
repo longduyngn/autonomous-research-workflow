@@ -18,7 +18,7 @@ def main():
     args = parser.parse_args()
     try:
         if args.action == 'register':
-            if os.environ.get('WORKFLOW_ROLE') in {'communicator', 'researcher', 'guardian'}:
+            if os.environ.get('WORKFLOW_ROLE') in {'communicator', 'planner', 'researcher', 'guardian'}:
                 raise PermissionError('This role cannot register artifacts')
             if not args.path:
                 parser.error('register requires path')

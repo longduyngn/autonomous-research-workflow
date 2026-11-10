@@ -255,9 +255,11 @@ class RouterTests(unittest.TestCase):
         self.assertEqual(self.router().select('operator').provider, 'codex_cli')
 
     def test_unknown_usage_is_ranked_after_measured_then_config_order(self):
-        self.assertEqual(self.router().select('researcher').provider, 'claude_cli')
+        # Ranking semantics of an unordered class (the planner itself uses the ordered D3 chain).
+        self.config['quota_routing']['role_classes']['planner'] = 'frontier'
+        self.assertEqual(self.router().select('planner').provider, 'claude_cli')
         self.five('codex', 20.0, started_ago=2 * self.HOUR)
-        self.assertEqual(self.router().select('researcher').provider, 'codex_cli')
+        self.assertEqual(self.router().select('planner').provider, 'codex_cli')
 
     def test_last_ten_percent_is_reserved_not_spent(self):
         self.five('claude', 90.0, started_ago=self.HOUR)
@@ -273,7 +275,7 @@ class RouterTests(unittest.TestCase):
         self.five('agy:claude', 100.0, 1 * self.HOUR)
         decision = self.router().select('operator')
         self.assertEqual((decision.source, decision.provider, decision.model), ('reserve', 'agy_headless_auto', 'gemini-4-argon-medium'))
-        self.assertEqual(self.router().select('researcher').model, 'gemini-4-argon-high')
+        self.assertEqual(self.router().select('planner').model, 'gemini-4-argon-high')
 
     def test_requires_may_spend_reserve_but_not_exhausted(self):
         self.five('claude', 95.0, self.HOUR)

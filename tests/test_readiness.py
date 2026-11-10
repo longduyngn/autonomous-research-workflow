@@ -63,7 +63,7 @@ class ReadinessTests(unittest.TestCase):
             for _ in range(3):
                 writer.add_blank_page(width=100, height=100)
             writer.write(root / "paper.pdf")
-            tools = AgentTools(root, "researcher")
+            tools = AgentTools(root, "planner")
             first = tools.call("read_document", {"path": "paper.pdf", "page_count": 2})
             self.assertEqual((len(first["pages"]), first["total_pages"], first["next_start_page"]), (2, 3, 2))
             (root / "long.txt").write_text("a" * 24000 + "end")
@@ -95,8 +95,8 @@ class ReadinessTests(unittest.TestCase):
         class Runner(FakeRunner):
             def run_role(self, role, **kwargs):
                 self.calls.append(role)
-                if role == "researcher":
-                    return AgentRunResult(role, "fake", True, '```research_plan\n{"mode":"direct","checks":[]}\n```')
+                if role == "planner":
+                    return AgentRunResult(role, "fake", True, '```planner_plan\n{"mode":"direct","checks":[]}\n```')
                 if role == "validator":
                     return AgentRunResult(role, "fake", True, "VERDICT: FAIL\nEvidence: implementation incorrect")
                 return AgentRunResult(role, "fake", True, "done")
@@ -106,7 +106,7 @@ class ReadinessTests(unittest.TestCase):
             orch = HybridOrchestrator(root, {"isolation": {"enabled": False}}, db, ContextLogManager(root / "logs"), runner)
             task = orch.run_task_to_completion(orch.submit_task("Hard task").id)
             self.assertEqual((task.status, task.replan_count, task.retry_count), ("ESCALATED", 1, 3))
-            self.assertEqual(runner.calls.count("researcher"), 2)
+            self.assertEqual(runner.calls.count("planner"), 2)
             self.assertEqual(runner.calls.count("operator"), 3)
             self.assertTrue((root / ".workflow/plans/revision_01.json").exists())
 
@@ -118,17 +118,17 @@ class ReadinessTests(unittest.TestCase):
                 {"instructions": "verified"}, {"instructions": "remaining", "checks": [{"argv": ["python", "old.py"]}]}],
                 "checks": [{"argv": ["python", "final.py"]}]}
             new = {"mode": "steps", "steps": [{"instructions": "verified"}, {"instructions": "new strategy"}]}
-            runner = FakeRunner(plan="```research_plan\n" + json.dumps(new) + "\n```")
+            runner = FakeRunner(plan="```planner_plan\n" + json.dumps(new) + "\n```")
             orch = HybridOrchestrator(root, {}, db, ContextLogManager(root / "logs"), runner)
             task = orch.submit_task("Research")
             task = db.update_task(task.id, replan_count=1, retry_count=2, step_index=1, plan_json=json.dumps(old))
-            orch._execute_researcher(task)
+            orch._execute_planner(task)
             actual = json.loads(db.get_task(task.id).plan_json)
             self.assertEqual(actual["checks"], old["checks"])
             self.assertEqual(actual["steps"][1]["checks"], old["steps"][1]["checks"])
             new["steps"][0]["instructions"] = "changed verified work"
-            runner.plan = "```research_plan\n" + json.dumps(new) + "\n```"
-            orch._execute_researcher(task)
+            runner.plan = "```planner_plan\n" + json.dumps(new) + "\n```"
+            orch._execute_planner(task)
             self.assertIn("preserve", db.get_task(task.id).validation_feedback)
 
     def test_full_stream_is_visible_before_process_finishes(self):

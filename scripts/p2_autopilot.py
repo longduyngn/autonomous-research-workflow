@@ -224,7 +224,7 @@ def tick(settings):
         config, store, router = build_router()
         tried = []
         for _ in range(settings['max_routes_per_tick']):
-            # The planner role is still named researcher until P2.2 lands.
+            # Planner chain (D3, ordered): Codex -> Claude Opus -> AGY Argon high; legacy name as fallback.
             decision = router.select('planner') or router.select('researcher')
             if decision is None or decision.action == 'wait':
                 until = getattr(decision, 'until', None) or now() + 1800

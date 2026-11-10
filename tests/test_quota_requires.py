@@ -34,7 +34,7 @@ class RequiredQuotaTests(unittest.TestCase):
         self.store.put([Snapshot(account, 'five_hour', used, self.now + 1000, 'fixture', self.now)])
 
     def test_plan_requires_roundtrip_validation_and_task_precedence(self):
-        plan = parse_plan('```research_plan\n' + json.dumps({
+        plan = parse_plan('```planner_plan\n' + json.dumps({
             'mode': 'direct', 'requires': {'operator': ['claude']}}) + '\n```')
         self.snapshot('claude', 95)
         task = SimpleNamespace(plan_json=json.dumps(plan), provider_override='')
@@ -48,7 +48,7 @@ class RequiredQuotaTests(unittest.TestCase):
         self.assertEqual(router.select('operator', task).source, 'pinned')
         for bad in ('claude', {'operator': 'claude'}, {'operator': []}, {'oops': ['claude']}):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
-                parse_plan('```research_plan\n' + json.dumps({'mode': 'direct', 'requires': bad}) + '\n```')
+                parse_plan('```planner_plan\n' + json.dumps({'mode': 'direct', 'requires': bad}) + '\n```')
 
     def test_remote_required_account_can_spend_its_own_reserve(self):
         self.config['quota_routing']['workarounds'] = {'claude': [{'provider': 'remote'}]}

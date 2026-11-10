@@ -1,19 +1,22 @@
-"""The researcher may provide a machine-readable plan; plain briefs stay direct."""
+"""The planner may provide a machine-readable plan; plain briefs stay direct.
+
+The fenced block is ``planner_plan``; the legacy ``research_plan`` block is still accepted.
+"""
 import json
 import re
 
 
 def parse_plan(output):
-    match = re.search(r"```research_plan\s*\n(.*?)```", output, re.DOTALL)
+    match = re.search(r"```(?:planner_plan|research_plan)\s*\n(.*?)```", output, re.DOTALL)
     if not match:
         return {"mode": "direct", "checks": [], "steps": []}
     plan = json.loads(match.group(1))
     if not isinstance(plan, dict) or plan.get("mode") not in ("direct", "steps"):
-        raise ValueError("research_plan mode must be direct or steps")
+        raise ValueError("planner_plan mode must be direct or steps")
     backend = plan.get('backend', 'local')
     from core.compute import PLATFORMS
     if backend not in {'local', 'colab', 'kaggle',*PLATFORMS}:
-        raise ValueError('Unknown research_plan backend')
+        raise ValueError('Unknown planner_plan backend')
     steps, checks = plan.get("steps", []), plan.get("checks", [])
     if not isinstance(steps, list) or not isinstance(checks, list):
         raise ValueError("Plan steps/checks must be lists")
@@ -35,9 +38,12 @@ def parse_plan(output):
     if plan.get('simple') is True:
         parsed['simple'] = True  # Optional hint for the quota router's light validator.
     if 'requires' in plan:
+        from core.role_names import canonical_role
         required = plan['requires']
+        if isinstance(required, dict):
+            required = {canonical_role(role): accounts for role, accounts in required.items()}
         if not isinstance(required, dict) or any(
-                role not in {'researcher', 'operator', 'validator', 'communicator', 'remote_manager'}
+                role not in {'planner', 'operator', 'validator', 'communicator', 'remote_manager'}
                 or not isinstance(accounts, list) or not accounts
                 or not all(isinstance(a, str) and a.strip() for a in accounts)
                 for role, accounts in required.items()):

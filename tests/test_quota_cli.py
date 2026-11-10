@@ -170,7 +170,7 @@ class QuotaCommandTests(unittest.TestCase):
         self.assertEqual(json.loads(out.getvalue())['accounts']['codex']['state'], 'reserved')
         out = io.StringIO()
         with redirect_stdout(out):
-            run(argparse.Namespace(action='route', role='researcher', task=None, requires=['codex'], json=True), self.config, self.root, self.db)
+            run(argparse.Namespace(action='route', role='planner', task=None, requires=['codex'], json=True), self.config, self.root, self.db)
         decision = json.loads(out.getvalue())['decision']
         self.assertEqual((decision['source'], decision['account'], decision['reserved_use']), ('requires', 'codex', True))
 

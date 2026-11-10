@@ -14,7 +14,7 @@ class TaskDeferred(Exception):
 def workspace_revision(workspace, task):
     """Fail closed if a bounded, secret-free source fingerprint cannot be produced."""
     from core.tools import AgentTools
-    root=Path(workspace).resolve();paths=AgentTools(root,'researcher');records=[];total=0
+    root=Path(workspace).resolve();paths=AgentTools(root,'planner');records=[];total=0
     controller_logs=Path(task.context_log_path).resolve().parent if task.context_log_path else None
     for directory,dirs,files in os.walk(root):
         dirs[:]=sorted(d for d in dirs if d not in {'.workflow','.git','.conda','.venv','__pycache__','node_modules'}

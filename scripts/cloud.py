@@ -30,7 +30,7 @@ def main():
     tools = CloudTools(args.workspace, cfg)
     try:
         tool = 'colab_run_snippet' if args.command == 'colab_run_snippet' else getattr(args, 'tool', '')
-        if os.environ.get("WORKFLOW_ROLE") in {"researcher", "communicator", "guardian", "world_watcher", "workspace_watcher"} and args.command != 'list' and tool not in {'notebook_inspect','agent_checkin','experiment_job_status'}:
+        if os.environ.get("WORKFLOW_ROLE") in {"planner", "researcher", "communicator", "guardian", "world_watcher", "workspace_watcher"} and args.command != 'list' and tool not in {'notebook_inspect','agent_checkin','experiment_job_status'}:
             raise PermissionError("This role may only inspect cloud artifacts")
         result = (tools.schemas() if args.command == 'list' else
                   tools.call('colab_run_snippet', {'code': args.code, 'hardware': args.hardware,

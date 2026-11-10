@@ -38,7 +38,7 @@ class IntegratedRecoveryIntentTests(unittest.TestCase):
                     'action':'needs_input','reason':'External effect identity cannot be established safely'}))
             runner.run_role=run
             current=orch._execute_operator(db.get_task(task_id))
-            self.assertEqual(current.status,'RESEARCHING')
+            self.assertEqual(current.status,'PLANNING')
             chat.reply=propose('status',task_id)
             status=chat.receive(f'How is task #{task_id} progressing?','channel','owner','status')['response']
             self.assertIn('recovery REVIEW_QUEUED',status)
@@ -53,7 +53,7 @@ class IntegratedRecoveryIntentTests(unittest.TestCase):
             self.assertEqual(final.feedback_revision,1)
             self.assertEqual(final.user_prompt,original)
             self.assertEqual(chat.feedback(task_id)[0]['message'],feedback)
-            self.assertEqual(calls,['operator','researcher'])
+            self.assertEqual(calls,['operator','planner'])
             chat.reply=propose('status',task_id)
             status=chat.receive(f'Current status of task #{task_id}?','channel','owner','status-final')['response']
             self.assertIn('WAITING_INPUT',status)

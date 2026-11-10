@@ -45,7 +45,7 @@ For role R, class C = `role_classes[R]` (the validator uses class `light` when
 If `requires[R]` (or `quota route --requires`) lists accounts, only those accounts are
 considered and their reserved last 10% may be spent; exhausted ones go to step 3 and
 then wait (the uncapped reserve cannot do that work).
-Task `research_plan` can declare `"requires":{"operator":["claude"]}` for work
+Task `planner_plan` can declare `"requires":{"operator":["claude"]}` for work
 requiring the local login, or `remote_claude` for a worker login. Task declarations
 override global `quota_routing.requires`; explicit provider pins still win. The
 remote launcher declares its own `remote_claude` requirement and returns
@@ -71,7 +71,7 @@ change. Native session IDs remain caches.
                "agy:gemini-4-argon": {"unlimited": true}},
   "classes":  {"frontier": [{"provider": "claude_cli", "model": "opus"}, ...], "worker": [...], "light": [...]},
   "reserve":  {"frontier": [...], "worker": [...], "light": [...]},
-  "role_classes": {"researcher": "frontier", "operator": "worker", "validator": "worker", "communicator": "light", ...},
+  "role_classes": {"planner": "frontier", "operator": "worker", "validator": "worker", "communicator": "light", ...},
   "requires": {}, "workarounds": {}
 }
 ```
@@ -82,7 +82,7 @@ change. Native session IDs remain caches.
   verified by this account's live `model/list` on 2026-11-09. Verify availability
   on another account. Set an entry to `""` to use provider tier defaults and
   `CODEX_RESEARCH_MODEL` / `CODEX_WORKER_MODEL` instead.
-- Roles missing from `role_classes` are not routed. The `researcher` plan flag and
+- Roles missing from `role_classes` are not routed. The `planner` plan flag and
   `requires` are the only per-task inputs.
 - `workarounds` is keyed by the blocked account, for example
   `{"claude": [{"provider": "remote_claude_operator", "account": "remote_claude"}]}`.
@@ -210,9 +210,9 @@ Verified live 2026-11-09:
 - Live Gemini 3.8 Flash turn with AGY CLI (`agy -p "Reply with exactly 'OK'" --model gemini-3.8-flash --effort low` succeeded with exit code 0).
 - Light-role dry-run pipeline (`main.py --no-env run "Light role verification" --dry-run`).
 - Light-role routing: `communicator`, `workspace_watcher`, and `remote_manager` route to `gemini-3.8-flash-medium` when quota is ok, and fallback to `gemini-4-argon-low` when Flash is exhausted.
-- Plan parsing: `"simple": true` in researcher plan drops the validator role class from heavy (`worker`) to `light` (`gemini-3.8-flash-medium`).
+- Plan parsing: `"simple": true` in planner plan drops the validator role class from heavy (`worker`) to `light` (`gemini-3.8-flash-medium`).
 - Remote Claude operator provider: fails closed without Colab calls (unit test).
-- Live routing 2026-11-09 with Codex reserved (5h 95% used): researcher→claude_cli/opus, operator/validator→claude_cli/sonnet, communicator/watcher→agy gemini-3.8-flash-medium.
+- Live routing 2026-11-09 with Codex reserved (5h 95% used): planner→claude_cli/opus, operator/validator→claude_cli/sonnet, communicator/watcher→agy gemini-3.8-flash-medium.
 
 The installed CLI schema supplies the `rate_limit_reached_type` enum, stored with
 provenance in `tests/fixtures/codex_limit_schema.json`. Generic reached values
