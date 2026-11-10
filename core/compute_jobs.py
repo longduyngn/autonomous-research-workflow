@@ -213,3 +213,34 @@ class JobController:
         self.db.log_event('JOB_CANCEL', 'compute', f"{handle.backend} cancel: {receipt.get('state')} ({reason[:80]})",
                           payload={'job_id': handle.job_id, **{k: v for k, v in receipt.items() if k != 'raw'}})
         return receipt
+
+
+# ---------------------------------------------------------------- cross-backend resume (P2.5-08)
+SAFE_PREDECESSOR = {'COMPLETED', 'FAILED', 'ARTIFACTS_READY', 'RECONCILED'}
+
+
+def plan_successor(store, previous_job, artifact_store, run_root, new_backend, allowed_backends, **expected):
+    """Successor JobSpec fields for resuming ``previous_job`` on ``new_backend``; raises when unsafe.
+
+    Required: the previous job finished or was verifiably stopped (UNKNOWN/SUBMISSION_UNKNOWN never
+    qualify), the backend switch is allowed by the approved plan, and a PUBLISHED checkpoint with
+    matching code/data/config/environment identity exists on the shared store.
+    """
+    from core.artifact_store import latest_resumable
+    job = store.get(previous_job)
+    if job['state'] not in SAFE_PREDECESSOR:
+        raise ValueError(f"Previous job is {job['state']}; reconcile it before starting a successor")
+    if new_backend not in BACKENDS or (allowed_backends and new_backend not in allowed_backends):
+        raise ValueError('The approved plan does not allow this backend')
+    manifest = latest_resumable(artifact_store, run_root, **expected)
+    if not manifest:
+        raise ValueError('No published, identity-matching checkpoint to resume from')
+    return {'backend': new_backend, 'parent_job_id': job['id'],
+            'config': {'resume_checkpoint_id': manifest['checkpoint_id'], 'resume_global_step': manifest.get('global_step', 0),
+                       'resume_files': [f['rel'] for f in manifest['files']], 'logical_run_id': manifest['logical_run_id']}}
+
+
+def verify_continuation(before_manifest, after_manifest):
+    """Recovery counts only when the successor published a later step of the same logical run."""
+    return (after_manifest['logical_run_id'] == before_manifest['logical_run_id']
+            and after_manifest.get('global_step', 0) > before_manifest.get('global_step', 0))
