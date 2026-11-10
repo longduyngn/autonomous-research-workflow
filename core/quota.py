@@ -792,7 +792,8 @@ class QuotaRouter:
             entry, info = items
             if ordered:
                 # Strict user-defined chain: first usable entry wins; no sticky/reset reordering.
-                return (index,)
+                # Only independence (validator vs operator account) may skip an entry of the chain.
+                return (entry['account'] in avoid_accounts, index)
             if avoid_accounts:
                 # Independence (validator vs operator) outranks stickiness and headroom.
                 return (entry['account'] in avoid_accounts,) + base_rank(entry, info, index)

@@ -230,6 +230,13 @@ def publish_checkpoint(store, run_root, checkpoint_id, local_files, manifest_fie
     return manifest
 
 
+def resolve_rel(run_root, rel):
+    """Manifest paths may be store-relative (controller) or run-relative (jobs writing inside the run root)."""
+    run_root = safe_relative(run_root)
+    rel = safe_relative(rel)
+    return rel if rel.startswith(run_root + '/') else f'{run_root}/{rel}'
+
+
 def published_manifests(store, run_root):
     run_root = safe_relative(run_root)
     found = []
@@ -252,7 +259,7 @@ def latest_resumable(store, run_root, **expected):
             continue
         files_ok = True
         for item in manifest['files']:
-            info = store.stat(item['rel']) if item.get('rel') else None
+            info = store.stat(resolve_rel(run_root, item['rel'])) if item.get('rel') else None
             if not info or info.get('bytes') != item['bytes']:
                 files_ok = False
                 break

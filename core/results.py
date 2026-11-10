@@ -11,11 +11,12 @@ artifact is and how it was checked:
 import json
 from pathlib import Path
 
-from core.artifact_store import sha256_file, validate_manifest
+from core.artifact_store import resolve_rel, sha256_file, validate_manifest
 
 
-def collect_results(store, manifest, results_root, max_bytes=50 * 1024 * 1024):
+def collect_results(store, manifest, results_root, max_bytes=50 * 1024 * 1024, run_root=None):
     validate_manifest(manifest)
+    locate = (lambda rel: resolve_rel(run_root, rel)) if run_root else (lambda rel: rel)
     target = Path(results_root) / str(manifest['task_id']) / manifest['logical_run_id']
     target.mkdir(parents=True, exist_ok=True)
     index = []
@@ -24,7 +25,7 @@ def collect_results(store, manifest, results_root, max_bytes=50 * 1024 * 1024):
         if item.get('local_download') and (item.get('bytes') or 0) <= max_bytes:
             local = target / Path(item['rel']).name
             try:
-                store.get(item['rel'], local)
+                store.get(locate(item['rel']), local)
                 ok = sha256_file(local) == item['sha256']
             except Exception:
                 ok = False
@@ -34,7 +35,7 @@ def collect_results(store, manifest, results_root, max_bytes=50 * 1024 * 1024):
         else:
             info = None
             try:
-                info = store.stat(item['rel'])
+                info = store.stat(locate(item['rel']))
             except Exception:
                 info = None
             entry['state'] = 'remote_verified' if info and info.get('bytes') == item.get('bytes') else 'unvalidated'

@@ -1041,7 +1041,7 @@ class HybridOrchestrator:
         if worker_owner:
             active_runner.control_environment['WORKFLOW_WORKER_OWNER']=worker_owner
         with self.db._connect() as c:
-            approved=[dict(r) for r in c.execute("SELECT id,action FROM approvals WHERE task_id=? AND decision='APPROVED' AND expires>?",(task.id,time.time()))]
+            approved=[dict(r) for r in c.execute("SELECT id,action FROM approvals WHERE task_id=? AND decision='APPROVED' AND expires>? AND action NOT LIKE '%\"kind\": \"PLAN_APPROVAL\"%'",(task.id,time.time()))]
         if approved:
             prompt+='\nApproved exact actions (recheck inputs; changed actions require a new decision):\n'+json.dumps(approved)
         try:
@@ -1089,10 +1089,11 @@ class HybridOrchestrator:
         cancelled = getattr(self._worker_local, "cancelled", None)
         if cancelled is not None and cancelled.is_set():
             raise InterruptedError("Task cancelled during agent execution")
+        # Exact-action approvals only; an optional PLAN_APPROVAL is handled by the plan gate (P2.6-01).
         with self.db._connect() as c:
-            pending=c.execute("SELECT * FROM approvals WHERE task_id=? AND (decision IN ('PENDING','DENIED') OR (decision='APPROVED' AND expires<=?)) ORDER BY created DESC LIMIT 1",(task.id,time.time())).fetchone()
-            unused=c.execute("SELECT 1 FROM approvals WHERE task_id=? AND decision='APPROVED' LIMIT 1",(task.id,)).fetchone()
-            consumed=c.execute("SELECT 1 FROM approvals WHERE task_id=? AND decision='CONSUMED' LIMIT 1",(task.id,)).fetchone()
+            pending=c.execute("SELECT * FROM approvals WHERE task_id=? AND (decision IN ('PENDING','DENIED') OR (decision='APPROVED' AND expires<=?)) AND action NOT LIKE '%\"kind\": \"PLAN_APPROVAL\"%' ORDER BY created DESC LIMIT 1",(task.id,time.time())).fetchone()
+            unused=c.execute("SELECT 1 FROM approvals WHERE task_id=? AND decision='APPROVED' AND action NOT LIKE '%\"kind\": \"PLAN_APPROVAL\"%' LIMIT 1",(task.id,)).fetchone()
+            consumed=c.execute("SELECT 1 FROM approvals WHERE task_id=? AND decision='CONSUMED' AND action NOT LIKE '%\"kind\": \"PLAN_APPROVAL\"%' LIMIT 1",(task.id,)).fetchone()
         if pending:
             from core.approvals import TaskDeferred
             self.control.wait(task.id,'APPROVAL',task.status,'Exact action needs owner decision',pending['id'],timeout=7*86400)
