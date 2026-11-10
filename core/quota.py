@@ -742,7 +742,7 @@ class QuotaRouter:
         except (ValueError, AttributeError):
             return False
 
-    def select(self, role, task=None, requires=None, prefer=None):
+    def select(self, role, task=None, requires=None, prefer=None, avoid=None):
         """Return a RouteDecision, or None when this role is not routed (caller keeps its config)."""
         now = self.clock()
         if requires is None:
@@ -786,11 +786,19 @@ class QuotaRouter:
 
         ordered = name in (self.cfg.get('ordered_classes') or [])
 
+        avoid_accounts = set(avoid or ())
+
         def rank(items, index):
             entry, info = items
             if ordered:
                 # Strict user-defined chain: first usable entry wins; no sticky/reset reordering.
                 return (index,)
+            if avoid_accounts:
+                # Independence (validator vs operator) outranks stickiness and headroom.
+                return (entry['account'] in avoid_accounts,) + base_rank(entry, info, index)
+            return base_rank(entry, info, index)
+
+        def base_rank(entry, info, index):
             sticky = prefer is not None and (entry['provider'], entry['model']) == tuple(prefer) and self.cfg['sticky_routes']
             return (not sticky, info['last_reset'] is None, -(info['last_reset'] or 0),
                     -(info['remaining'] if info['remaining'] is not None else 100.0), index)
@@ -802,8 +810,12 @@ class QuotaRouter:
                 return None
             order = sorted(range(len(usable)), key=lambda n: rank(usable[n], n))
             entry, info = usable[order[0]]
+            independence = ''
+            if avoid_accounts:
+                independence = ('; independent of ' + ','.join(sorted(avoid_accounts)) if entry['account'] not in avoid_accounts
+                                else '; NOT independent: only the operator account ' + entry['account'] + ' has capacity')
             return RouteDecision('run', entry['provider'], entry['model'], entry['account'], source,
-                                 reason + (f" (account {entry['account']}, {info['state']}, remaining {info['remaining']})"),
+                                 reason + (f" (account {entry['account']}, {info['state']}, remaining {info['remaining']})") + independence,
                                  reserved_use=info['state'] == 'reserved', quota_class=name, considered=considered)
 
         entries = classes[name]

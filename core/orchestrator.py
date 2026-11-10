@@ -227,7 +227,16 @@ class HybridOrchestrator:
         options = self.config.get('quota_routing', {})
         prefer = self.quota.store.last_route(task.id, role) if options.get('sticky_routes', True) else None
         explicit = task.provider_override or self.provider_override or ''
-        _, _, decision = resolve(self.quota, role, explicit, task, prefer=prefer)
+        extra = {}
+        if role == 'validator':
+            # Cross-check: prefer a validator on a different quota account than the operator that did the work.
+            from core.quota import account_for
+            last = self.quota.store.last_route(task.id, 'operator')
+            if last:
+                account = account_for(self.config.get('providers', {}).get(last[0], {}), last[1])
+                if account:
+                    extra['avoid'] = {account}
+        _, _, decision = resolve(self.quota, role, explicit, task, prefer=prefer, **extra)
         if decision is not None:
             record_route(self.db, self.config, role, decision, task.id, self._route_seen)
         return decision
