@@ -36,7 +36,96 @@ def claude_stream_result(lines):
     return final
 
 
+def _opencode_error_class(status, message):
+    text = (message or '').lower()
+    if status == 429 or 'rate limit' in text or 'rate-limit' in text:
+        return 'QUOTA_EXHAUSTED' if any(m in text for m in ('per-day', 'per day', 'daily', 'quota', 'credits')) else 'RATE_LIMIT'
+    if status == 402 or 'insufficient credits' in text or 'payment required' in text:
+        return 'QUOTA_EXHAUSTED'
+    if status in (401, 403) or 'unauthorized' in text or 'invalid api key' in text:
+        return 'AUTH_REQUIRED'
+    if status == 404 or 'model not found' in text or 'no endpoints found' in text:
+        return 'MODEL_UNAVAILABLE'
+    if 'context length' in text or 'context_length' in text or 'too many tokens' in text:
+        return 'CONTEXT_LIMIT'
+    if status is not None and status >= 500 or 'econnrefused' in text or 'cannot connect' in text:
+        return 'TRANSPORT'
+    return 'PROTOCOL'
+
+
+def parse_opencode_stream(lines):
+    """Summarize ``opencode run --format json`` events (schema of the pinned 1.19.5 CLI).
+
+    A run is ``completed`` only when its last step finished with a non-tool reason and no
+    error event arrived; usage is summed over steps and stays ``None`` when never reported.
+    """
+    summary = {'session_id': '', 'text': '', 'tools': [], 'steps': 0, 'finish_reason': '', 'completed': False,
+               'usage': None, 'cost_usd': None, 'error': '', 'error_class': None, 'status_code': None,
+               'retry_after': None}
+    chunks = []
+    for line in lines:
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        summary['session_id'] = event.get('sessionID') or summary['session_id']
+        part = event.get('part') or {}
+        kind = event.get('type')
+        if kind == 'text':
+            chunks.append(part.get('text', ''))
+        elif kind == 'tool_use':
+            state = part.get('state') or {}
+            summary['tools'].append({'tool': part.get('tool', ''), 'status': state.get('status', '')})
+        elif kind == 'step_finish':
+            summary['steps'] += 1
+            summary['finish_reason'] = part.get('reason', '')
+            tokens = part.get('tokens')
+            if isinstance(tokens, dict):
+                usage = summary['usage'] or {'input_tokens': 0, 'output_tokens': 0, 'reasoning_tokens': 0,
+                                             'cache_read_tokens': 0, 'cache_write_tokens': 0}
+                cache = tokens.get('cache') or {}
+                for key, value in (('input_tokens', tokens.get('input')), ('output_tokens', tokens.get('output')),
+                                   ('reasoning_tokens', tokens.get('reasoning')),
+                                   ('cache_read_tokens', cache.get('read')), ('cache_write_tokens', cache.get('write'))):
+                    if isinstance(value, (int, float)):
+                        usage[key] += int(value)
+                summary['usage'] = usage
+            if isinstance(part.get('cost'), (int, float)):
+                summary['cost_usd'] = (summary['cost_usd'] or 0.0) + float(part['cost'])
+        elif kind == 'error':
+            error = event.get('error') or {}
+            data = error.get('data') or {}
+            message = data.get('message') or error.get('message') or error.get('name') or 'error event'
+            status = data.get('statusCode')
+            headers = {str(k).lower(): v for k, v in (data.get('responseHeaders') or {}).items()}
+            try:
+                summary['retry_after'] = float(headers['retry-after']) if 'retry-after' in headers else None
+            except (TypeError, ValueError):
+                summary['retry_after'] = None
+            summary['status_code'] = status
+            # Only allow-listed fields: response bodies may echo request content.
+            summary['error'] = f"{error.get('name', 'Error')}: {str(message)[:300]}" + (f' (HTTP {status})' if status else '')
+            summary['error_class'] = _opencode_error_class(status, message)
+    summary['text'] = '\n'.join(c for c in chunks if c)
+    summary['completed'] = (summary['steps'] > 0 and summary['finish_reason'] not in ('tool-calls', '')
+                            and not summary['error'])
+    return summary
+
+
 class EphemeralAgentRunner:
+    def _free_selector(self):
+        from core.openrouter_free import FreeModelSelector
+        state = Path(self.config.get('openrouter_state_dir') or self.instructions_root / 'storage' / 'openrouter')
+        if not state.is_absolute():
+            state = self.instructions_root / state
+        selector = getattr(self, '_free_selector_cache', None)
+        if selector is None or selector.state_dir != state:
+            selector = FreeModelSelector(state)
+            self._free_selector_cache = selector
+        return selector
+
     def __init__(self, workspace_root, config):
         self.workspace_root = Path(workspace_root).resolve()
         self.instructions_root = self.workspace_root
@@ -304,10 +393,33 @@ class EphemeralAgentRunner:
             if manifest:
                 cmd += ["--strict-mcp-config", "--mcp-config", str(self.workspace_root / ".mcp.json")]
         elif kind == "opencode_cli":
+            from core.opencode_config import api_profile, qualified_model
+            profile = api_profile(provider)
+            free_selector = None
+            if profile and (profile['auto_free'] or profile['free_only']):
+                free_selector = self._free_selector()
+            if profile and not model and profile['auto_free']:
+                model = free_selector.select(cfg.get('tier', 'worker'), need_tools=role != 'communicator',
+                                             min_context=profile['min_context'])
+                if not model:
+                    reset = free_selector.next_reset()
+                    if reset is None:
+                        raise ValueError('No free tool-capable OpenRouter model in the current catalog')
+                    # Whole free pool cooling down: report a quota wait for the profile account.
+                    return AgentRunResult(role, name, False, '', exit_code=1,
+                        error='Provider quota exhausted: every free OpenRouter model is cooling down',
+                        structured_data={'quota_account': profile['account'], 'model': '',
+                            'quota': {'exhausted': True, 'matched': 'all free models cooling down',
+                                      'resets_at': reset, 'account': profile['account'], 'provider': name, 'model': ''}})
             if not model:
                 raise ValueError("Set an explicit OpenCode provider/model for this role; no implicit paid fallback")
+            if profile and profile['free_only'] and not free_selector.is_free(model):
+                raise ValueError(f"free_only profile refuses model {model}: not zero-priced in the current catalog")
+            opencode_model = qualified_model(profile, model) if profile else model
+            # --dir: tool paths otherwise resolve against the inherited PWD (verified on 1.19.5).
             cmd = [resolved, "run", "--format", "json", "--title", getattr(self, "run_label", role),
-                   "--agent", "build" if writable or role == "validator" else "plan", "--model", model,
+                   "--agent", "build" if writable or role == "validator" else "plan", "--model", opencode_model,
+                   "--dir", str(self.workspace_root),
                    f"Read {prompt_file} and perform its assigned {role} step."]
             input_text = None
         else:
@@ -338,6 +450,13 @@ class EphemeralAgentRunner:
             if not env.get("HOME"):
                 env["HOME"] = str(profile_home)
         if kind == "opencode_cli":
+            if profile:
+                from core.opencode_config import check_credential, isolated_env, runtime_config
+                check_credential(profile, env)
+                home = self.workspace_root / ".workflow" / "opencode-home" / role
+                env = isolated_env(env, home, runtime_config(profile, model))
+            env["PWD"] = str(self.workspace_root)
+            # Pinned OpenCode 1.19.5 understands only the V1 permission schema.
             permissions = {"*": "deny", "read": "allow", "glob": "allow", "grep": "allow",
                            "list": "allow", "webfetch": "allow", "websearch": "allow", "skill": "allow",
                            "edit": "allow" if writable else "deny",
@@ -457,21 +576,33 @@ class EphemeralAgentRunner:
                     elif event.get('type') in {'error', 'turn.failed'}:
                         codex_errors.append(event)
         opencode_error = None
+        opencode_limit = None
         if kind == "opencode_cli":
-            chunks = []
-            for line in stdout_file.read_text(encoding="utf-8").splitlines():
-                try:
-                    event = json.loads(line)
-                except ValueError:
-                    continue
-                if event.get("sessionID"):
-                    evidence["session_id"] = event["sessionID"]
-                if event.get("type") == "text":
-                    chunks.append(event.get("part", {}).get("text", ""))
-                if event.get("type") == "error":
-                    opencode_error = "OpenCode returned an error event; inspect the saved transcript"
-            out = "\n".join(chunks)
+            parsed = parse_opencode_stream(stdout_file.read_text(encoding="utf-8").splitlines())
+            if parsed["session_id"]:
+                evidence["session_id"] = parsed["session_id"]
+            evidence.update(usage=parsed["usage"], total_cost_usd=parsed["cost_usd"], num_turns=parsed["steps"],
+                            native_tools=parsed["tools"], stop_reason=parsed["finish_reason"],
+                            error_class=parsed["error_class"])
+            if profile:
+                evidence["api_vendor"] = profile["vendor"]
+            out = parsed["text"]
             final_file.write_text(out, encoding="utf-8")
+            if parsed["error"]:
+                opencode_error = "OpenCode error: " + parsed["error"]
+            elif not parsed["completed"]:
+                # Exit 0 with text but no final stop step is not a completed answer.
+                opencode_error = "OpenCode stream ended without a final stop step; inspect the saved transcript"
+            if parsed["error_class"] in {"RATE_LIMIT", "QUOTA_EXHAUSTED"}:
+                retry = parsed["retry_after"]
+                opencode_limit = {"exhausted": True, "matched": parsed["error"][:80],
+                                  "resets_at": time.time() + (retry if retry is not None else
+                                  float(self.config.get("quota_routing", {}).get("default_cooldown_seconds", 900))),
+                                  "error_class": parsed["error_class"]}
+                if profile and profile["auto_free"]:
+                    # Only this free model cools down; the next call picks the next free model.
+                    self._free_selector().cool_down(model, opencode_limit["resets_at"])
+                    evidence["free_model_cooled_down"] = model
         hook_error = None
         if native_hooks:
             receipts = self.workspace_root / ".workflow/hook-events.jsonl"
@@ -517,6 +648,9 @@ class EphemeralAgentRunner:
             cli_error = 'Turn budget reached; checkpoint saved for reconciliation'
         from core.quota import LimitErrorDetector, account_for, snapshots_from_stream
         evidence['model'], evidence['quota_account'] = model, account_for(provider, model) or ''
+        if kind == 'opencode_cli' and profile and profile['auto_free']:
+            # Free models are limited per model; one model's 429 must not block the whole account.
+            evidence['quota_account'] = f"{profile['account']}:{model}"
         observed = snapshots_from_stream(result['stdout'], kind)
         if kind == 'claude_cli':
             # run_process returns a bounded stdout tail; quota can arrive near
@@ -541,7 +675,7 @@ class EphemeralAgentRunner:
         if not success:
             # Failed runs only: successful output may legitimately discuss limits.
             tail = out if len(out) < 1500 else ''
-            limit = next((q for q in (LimitErrorDetector.detect(json.dumps(e)) for e in reversed(codex_errors)) if q), None)
+            limit = opencode_limit or next((q for q in (LimitErrorDetector.detect(json.dumps(e)) for e in reversed(codex_errors)) if q), None)
             limit = limit or LimitErrorDetector.detect("\n".join([result['stderr'], cli_error or '', tail]))
             if limit:
                 evidence['quota'] = {**limit, 'account': evidence['quota_account'], 'provider': name, 'model': model}

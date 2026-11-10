@@ -66,19 +66,17 @@ def check_credential(profile, env):
 
 
 def qualified_model(profile, model):
-    """OpenCode model reference ``<provider_id>/<model>``; vendor model IDs may contain '/'."""
-    prefix = profile['provider_id'] + '/'
-    return model if model.startswith(prefix) and model.count('/') > 1 else prefix + model
+    """OpenCode model reference ``<provider_id>/<vendor model id>``.
 
-
-def bare_model(profile, model):
-    prefix = profile['provider_id'] + '/'
-    return model[len(prefix):] if model.startswith(prefix) and model.count('/') > 1 else model
+    Configured and selected models are always vendor IDs (which may themselves contain
+    '/', e.g. ``openrouter/free``); the provider prefix is added exactly once, here.
+    """
+    return profile['provider_id'] + '/' + model
 
 
 def runtime_config(profile, model, permission=None):
-    """OpenCode config content for one invocation: exactly one provider and one model."""
-    bare = bare_model(profile, model)
+    """OpenCode config content for one invocation: exactly one provider and one vendor model."""
+    bare = model
     options = {'baseURL': profile['base_url']}
     if profile['api_key_env']:
         options['apiKey'] = '{env:' + profile['api_key_env'] + '}'

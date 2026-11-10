@@ -17,10 +17,10 @@
 
 - Done: P2.0-01, P2.1-01 (contract in `config/provider_versions.json`, fixtures in `tests/fixtures/opencode/1.19.5/`),
   P2.1-02 (`core/opencode_config.py`), P2.1-02b (`core/openrouter_free.py`).
-- Next: P2.1-03 adapter in `core/providers.py` opencode branch: close stdin, pass `--dir`, isolated env from
-  `opencode_config.isolated_env` when `api_profile` is set, auto_free model via `FreeModelSelector`
-  (state `storage/openrouter`), free_only check, parse tool_use/step_finish(tokens,cost)/error(statusCode,
-  retry-after) into the standard result; 429 → cool down that free model and report quota.
+- Done also: P2.1-03 (OpenCode adapter + `parse_opencode_stream`).
+- Next: P2.1-04 session resume/compaction with handoff (pass `--session` for a compatible stored session ID;
+  identity = task/role/profile/model/instructions), then P2.1-05 quota/usage ledger for api accounts,
+  P2.1-06 `_run_http` 429 fix, P2.1-07 offline+live API acceptance (`scripts/verify_p2_api.py`).
 - The scheduled autopilot task is NOT installed (blocked by the session permission classifier); the user
   can install it with `python scripts/p2_autopilot.py install`.
 

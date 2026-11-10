@@ -53,7 +53,8 @@ class ApiProfileTests(unittest.TestCase):
         self.assertNotIn('sk-or-', text)
         self.assertEqual(config['model'], 'openrouter/nvidia/nemotron-3-ultra-550b-a55b:free')
         self.assertEqual(list(config['provider']['openrouter']['models']), ['nvidia/nemotron-3-ultra-550b-a55b:free'])
-        self.assertEqual(qualified_model(profile, config['model']), config['model'])  # idempotent
+        # Vendor IDs may contain '/' themselves (e.g. openrouter/free): prefix exactly once.
+        self.assertEqual(qualified_model(profile, 'openrouter/free'), 'openrouter/openrouter/free')
 
     def test_missing_credential_fails_before_launch(self):
         profile = api_profile(provider())

@@ -286,7 +286,10 @@ class ReadinessTests(unittest.TestCase):
             runner = EphemeralAgentRunner(root, config)
             runner.instructions_root = ROOT
             runner.run_label = "task-00001/step-01/validator/attempt-01"
-            events = [{"type": "text", "sessionID": "session-test", "part": {"text": "VERDICT: PASS\nEvidence: inspected"}}]
+            # Pinned 1.19.5 stream shape: a run completes only with a final stop step.
+            events = [{"type": "text", "sessionID": "session-test", "part": {"text": "VERDICT: PASS\nEvidence: inspected"}},
+                      {"type": "step_finish", "sessionID": "session-test", "part": {"reason": "stop",
+                       "tokens": {"input": 3, "output": 2, "reasoning": 0, "cache": {"read": 0, "write": 0}}, "cost": 0}}]
             output = "\n".join(json.dumps(e) for e in events)
             with patch("core.providers.find_executable", return_value="opencode.exe"), patch("core.providers.run_process", return_value={"exit_code": 0, "stdout": output, "stderr": ""}) as process:
                 result = runner.run_role("validator", "Check it")
