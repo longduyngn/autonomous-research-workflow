@@ -64,6 +64,20 @@ def _extract_outputs_text(res: dict) -> str:
     return "".join(lines).strip()
 
 
+def kaggle_log_error_tail(directory, max_lines=12):
+    """Last exception lines from a downloaded Kaggle kernel log (JSON list of {stream_name, data})."""
+    lines = []
+    for log in sorted(Path(directory).glob("*.log")):
+        try:
+            entries = json.loads(log.read_text(encoding="utf-8", errors="replace"))
+            text = "".join(e.get("data", "") for e in entries if isinstance(e, dict))
+        except (ValueError, OSError):
+            text = log.read_text(encoding="utf-8", errors="replace")
+        lines += [l.rstrip() for l in text.splitlines()
+                  if re.search(r"(Error|Exception)\b.*:|^Traceback|^\s*-+>", l)]
+    return lines[-max_lines:]
+
+
 class CloudTools:
     def __init__(self, root, config=None):
         self.root = Path(root).resolve()
@@ -841,7 +855,7 @@ class CloudTools:
 
     def kaggle_export_data(self, args):
         job = self.kaggle_job_status({"job_id": args["job_id"]})
-        if job["state"] != "complete":
+        if job["state"] not in {"complete", "error", "cancelled", "canceled"}:
             return {"status": "not_ready", "job": job}
         export = self.path(f"artifacts/kaggle/{job['id']}")
         export.mkdir(parents=True, exist_ok=True)
@@ -855,5 +869,9 @@ class CloudTools:
             # D7: never download everything by default; heavy checkpoints belong on the shared store.
             argv += ["--file-pattern", r"(?i)^[^/]*\.(?:json|jsonl|csv|txt|log|md|png|jpg|jpeg|svg)$"]
         output = self._kaggle(argv, timeout=300)
-        return {"status": "completed", "export_dir": str(export), "output": output,
-                "files": [str(p.relative_to(self.root)) for p in export.rglob("*") if p.is_file()]}
+        result = {"status": "completed", "export_dir": str(export), "output": output, "job_state": job["state"],
+                  "files": [str(p.relative_to(self.root)) for p in export.rglob("*") if p.is_file()]}
+        if job["state"] != "complete":
+            # A failed run's kernel log carries the traceback; surface its tail so agents can diagnose.
+            result["error_tail"] = kaggle_log_error_tail(export)
+        return result

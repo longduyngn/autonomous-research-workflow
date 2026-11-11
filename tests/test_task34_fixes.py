@@ -83,3 +83,16 @@ class StaleConversationBundle(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class FailedKaggleLog(unittest.TestCase):
+    def test_error_tail_extracts_traceback_from_kernel_log(self):
+        from core.cloud import kaggle_log_error_tail
+        with tempfile.TemporaryDirectory() as tmp:
+            log = [{'stream_name': 'stderr', 'data': 'noise\n'},
+                   {'stream_name': 'stderr', 'data': "----> 8     raise RuntimeError('x')\n"},
+                   {'stream_name': 'stderr', 'data': 'RuntimeError: Kaggle secret RCLONE_GDRIVE_CONF is missing\n'}]
+            (Path(tmp) / 'run.log').write_text(json.dumps(log), encoding='utf-8')
+            tail = kaggle_log_error_tail(tmp)
+        self.assertTrue(any('RCLONE_GDRIVE_CONF is missing' in l for l in tail))
+        self.assertNotIn('noise', tail)
