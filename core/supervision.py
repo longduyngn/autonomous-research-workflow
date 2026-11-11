@@ -163,7 +163,8 @@ class Supervisor:
         database_id=hashlib.sha256(str(self.db.db_path.resolve()).encode()).hexdigest()[:12]
         directory=self.orch.workspace_root/'storage/diagnostics'/database_id/f'task_{task.id:05d}'
         directory.mkdir(parents=True,exist_ok=True)
-        if not (directory/'.workflow/integration.json').exists():
+        from core.integrations import bundle_is_current
+        if not bundle_is_current(directory,self.orch.workspace_root):
             prepare_integrations(self.orch.workspace_root,directory,directory)
         cfg=copy.deepcopy(self.orch.config)
         role=cfg.setdefault('roles',{}).setdefault('workspace_watcher',{})

@@ -83,6 +83,27 @@ class ProgressStore:
             c.execute('UPDATE tasks SET remote_job_id=? WHERE id=?',(key,task_id))
         return self.get(key),True
 
+    def unbound(self,task_id,backend):
+        """The single active registered job of this task/backend that has no cloud ID yet, or None."""
+        with self.db._connect() as c:
+            rows=c.execute("SELECT id FROM experiment_jobs WHERE task_id=? AND backend=? AND external_id='' "
+                           "AND state NOT IN ('ARTIFACTS_READY','RECONCILED')",(task_id,backend)).fetchall()
+        return rows[0]['id'] if len(rows)==1 else None
+
+    def bind_external(self,key,task_id,backend,external_id):
+        """Attach the cloud run ID to a registered job of this task; never rebinds to a different ID."""
+        with self.db._connect() as c:
+            c.execute('BEGIN IMMEDIATE')
+            r=c.execute('SELECT * FROM experiment_jobs WHERE id=?',(key,)).fetchone()
+            if not r or r['task_id']!=task_id or r['backend']!=backend:
+                raise ValueError('Unknown or foreign job')
+            if r['state'] in ('ARTIFACTS_READY','RECONCILED'):
+                raise ValueError('Job is already closed')
+            if r['external_id'] not in ('',external_id):
+                raise ValueError('Job is already bound to another cloud run')
+            c.execute('UPDATE experiment_jobs SET external_id=? WHERE id=?',(external_id,key))
+        return self.get(key)
+
     def get(self,key,task_id=None):
         with self.db._connect() as c:
             r=c.execute('SELECT * FROM experiment_jobs WHERE id=?',(key,)).fetchone()

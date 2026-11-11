@@ -179,6 +179,15 @@ def prepare_integrations(controller, staging, target):
     return manifest
 
 
+def bundle_is_current(workspace, controller):
+    """False when a persistent controller-owned workspace was prepared for an older hook script/controller."""
+    try:
+        verify_bundle(workspace, controller)
+        return True
+    except (OSError, ValueError, KeyError):
+        return False
+
+
 def verify_bundle(workspace, controller):
     workspace, controller = Path(workspace).resolve(), Path(controller).resolve()
     manifest = json.loads((workspace / ".workflow/integration.json").read_text(encoding="utf-8"))

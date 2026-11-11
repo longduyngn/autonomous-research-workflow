@@ -96,7 +96,7 @@ class KaggleJobAdapter:
                                 {'WORKFLOW_CHECKPOINT_URI': spec.checkpoint_uri, 'WORKFLOW_JOB_REQUEST_KEY': request_key,
                                  'WORKFLOW_PARENT_JOB_ID': spec.parent_job_id},
                                 rclone_bootstrap_lines(spec.checkpoint_uri, (self.config or {}).get('storage', {})))
-        args = {'notebook_path': entry, 'hardware': spec.hardware,
+        args = {'notebook_path': entry, 'hardware': spec.hardware, 'job_id': job_id,
                 **{k: v for k, v in spec.config.items() if k in ('kaggle_kernel_slug', 'input_files', 'dataset_sources',
                                                                  'competition_sources', 'total', 'stall_seconds')}}
         if spec.budget_seconds:

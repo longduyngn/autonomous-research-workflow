@@ -51,3 +51,16 @@ Statuses: `ready`, `in_progress`, `verified`, `reused_verified`, `deferred`.
 8. Heavy checkpoints off-machine; two-way resume continuation — met offline; live Drive publish/restore met; live cross-backend deferred.
 9. Mini-DDPM + validation + notification live receipts — offline met; live deferred (P2.7-02).
 10. Docs distinguish source-supported / fixture-tested / live-verified / deferred — met (this log).
+
+## 2026-11-11 — fixes from live task #34 (Kaggle → Drive), escalated before any push
+
+- Double job registration: `kaggle_execute_notebook` registered a second tracked job after `experiment_job_register`
+  / `JobController`, which `ProgressStore` rejects ("Reconcile the existing task job first"). It now binds the cloud
+  run to the registered job (`job_id`, or the single unbound Kaggle job of the task; `ProgressStore.bind_external`).
+- Drive bootstrap was reachable only through `KaggleJobAdapter` (in-process `JobController`, which a sandboxed
+  worker cannot use: "unable to open database file"). The worker tool `kaggle_execute_notebook` now accepts
+  `checkpoint_uri` and adds the `RCLONE_GDRIVE_CONF` secret bootstrap itself.
+- Communicator failed with "Hook script changed since workspace preparation": persistent conversation/recovery
+  workspaces kept a bundle from an older hook script. They are re-prepared when stale (`bundle_is_current`).
+- Not fixed in the controller: task 34's own `evidence.py` wrote `artifact_index.json` without `artifacts`.
+- Gate: 513 tests OK (1 skipped), doctor 0, diff check 0.

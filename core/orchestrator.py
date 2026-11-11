@@ -114,7 +114,9 @@ class HybridOrchestrator:
         identity=hashlib.sha256(json.dumps([os.environ.get('DISCORD_GUILD_ID') or scope,actor]).encode()).hexdigest()
         workspace=self.workspace_root/'storage/conversations'/identity
         workspace.mkdir(parents=True,exist_ok=True)
-        if not (workspace/'.workflow/integration.json').is_file():
+        from core.integrations import bundle_is_current
+        # Conversation workspaces persist across controller updates; refresh a stale hook bundle.
+        if not bundle_is_current(workspace,self.workspace_root):
             prepare_integrations(self.workspace_root,workspace,workspace)
         return workspace,identity
 
@@ -1013,7 +1015,8 @@ class HybridOrchestrator:
             from core.integrations import prepare_integrations
             directory=self.workspace_root/'storage/recovery'/recovery_packet['episode_id']
             directory.mkdir(parents=True,exist_ok=True)
-            if not (directory/'.workflow/integration.json').is_file():
+            from core.integrations import bundle_is_current
+            if not bundle_is_current(directory,self.workspace_root):
                 prepare_integrations(self.workspace_root,directory,directory)
             atomic_json(directory/'facts.json',recovery_packet)
             if isinstance(self.runner,EphemeralAgentRunner):

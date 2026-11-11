@@ -155,7 +155,7 @@ class CloudTools:
             schema("colab_connect", "Open official Colab browser connection (auto-confirms via Coc Coc Playwright if CDP port 9222 is open; reuses active session if already connected)", {"force": {"type": "boolean"}}),
             schema("colab_call", "Call a tool from colab_tools or high-level workflow action (set_runtime, disconnect_runtime, run_notebook, read_live_output)", {"name": string, "arguments": {"type": "object"}}, ["name"]),
             schema("colab_release", "Close this task's browser bridge transport AFTER shutting down unused remote compute; pass force=true to close shared session", {"force": {"type": "boolean"}}),
-            schema("kaggle_execute_notebook", "Stage an isolated Kaggle kernel and submit a real cloud run; records job ID", {**notebook, "hardware": string, "kaggle_kernel_slug": string, "input_files": {"type": "array", "items": string}, "dataset_sources": {"type": "array", "items": string}, "competition_sources": {"type": "array", "items": string}, "timeout_seconds": {"type": "integer"}, 'total':{'type':'number'},'stall_seconds':{'type':'number'}}, ["notebook_path"]),
+            schema("kaggle_execute_notebook", "Stage an isolated Kaggle kernel and submit a real cloud run; records job ID", {**notebook, "hardware": string, "kaggle_kernel_slug": string, "input_files": {"type": "array", "items": string}, "dataset_sources": {"type": "array", "items": string}, "competition_sources": {"type": "array", "items": string}, "timeout_seconds": {"type": "integer"}, 'total':{'type':'number'},'stall_seconds':{'type':'number'}, 'job_id':{'type':'string','description':'Job from experiment_job_register to bind (default: the single unbound Kaggle job of this task)'}, 'checkpoint_uri':{'type':'string','description':'Off-VM store, e.g. rclone:gdrive:workflow-runs/<task>/<run>; adds the RCLONE_GDRIVE_CONF secret bootstrap'}}, ["notebook_path"]),
             schema("kaggle_job_status", "Poll a submitted Kaggle run once; no blocking GPU wait", {"job_id": string}, ["job_id"]),
             schema("kaggle_export_data", "Download only the named light outputs (metrics/logs/reports/samples) of a completed Kaggle job; heavy checkpoints stay on the shared store", {"job_id": string, "files": {"type": "array", "items": string}, "file_pattern": string, "all": {"type": "boolean"}}, ["job_id"]),
             schema("kaggle_job_cancel", "Request cancellation of exactly the submitted Kaggle version; verify afterwards with kaggle_job_status", {"job_id": string, "reason": string}, ["job_id", "reason"]),
@@ -697,6 +697,12 @@ class CloudTools:
         if kernel.get("language", "python").lower() != "python":
             raise ValueError("Kaggle workflow notebooks must use a Python kernel")
         metadata["kernelspec"] = {"name": "python3", "display_name": "Python 3", "language": "python"}
+        if args.get("checkpoint_uri") and not any(c.get("id") == "wfboot01" for c in nb["cells"]):
+            from core.compute_backends import rclone_bootstrap_lines
+            lines = ["import os\n", f"os.environ['WORKFLOW_CHECKPOINT_URI'] = {str(args['checkpoint_uri'])!r}\n"]
+            lines += rclone_bootstrap_lines(args["checkpoint_uri"], self.workflow_config.get("storage", {}))
+            nb["cells"].insert(0, {"cell_type": "code", "id": "wfboot01", "metadata": {}, "source": lines,
+                                   "outputs": [], "execution_count": None})
         for cell in nb["cells"]:
             cell.setdefault("id", uuid.uuid4().hex[:8])
         hardware = args.get("hardware", "CPU").upper()
@@ -717,9 +723,15 @@ class CloudTools:
         except PermissionError: progress,task_id=None,None
         def bind(job):
             if not progress: return job
-            tracked,_=progress.register(task_id,'kaggle-'+fingerprint[:40],'kaggle',external_id=job['id'],
-                total=args.get('total',0),stall_seconds=args.get('stall_seconds',900),
-                budget_seconds=args.get('timeout_seconds',0))
+            # One tracked job per run: reuse the job registered before launch (experiment_job_register or
+            # JobController) instead of registering a second one, which the store rejects.
+            target=args.get('job_id') or progress.unbound(task_id,'kaggle')
+            if target:
+                tracked=progress.bind_external(target,task_id,'kaggle',job['id'])
+            else:
+                tracked,_=progress.register(task_id,'kaggle-'+fingerprint[:40],'kaggle',external_id=job['id'],
+                    total=args.get('total',0),stall_seconds=args.get('stall_seconds',900),
+                    budget_seconds=args.get('timeout_seconds',0))
             job['tracking_id']=tracked['id']
             return job
         for previous in self.path(".workflow/cloud_jobs").glob("*/job.json"):
