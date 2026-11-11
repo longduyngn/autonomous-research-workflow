@@ -43,10 +43,12 @@ rồi cập nhật `config/provider_versions.json`.
 
 ## 5. Việc còn cần bạn (live)
 
-1. **Kaggle → Drive:** thêm token rclone vào Kaggle Secrets (tên gợi ý `RCLONE_CONFIG`) để notebook ghi
-   checkpoint thẳng lên Drive; sau đó chạy acceptance live Kaggle.
-2. **Colab:** mở Cốc Cốc với CDP + `python main.py colab-bridge`, và cho biết tên thư mục Drive (để biết đường dẫn
-   `/content/drive/MyDrive/<tên>/workflow-runs` tương ứng với folder ID).
+1. **Kaggle → Drive:** tạo Kaggle Secret tên `RCLONE_GDRIVE_CONF` (không dùng `RCLONE_CONFIG`, vì rclone hiểu
+   biến đó là đường dẫn file). Giá trị: toàn bộ output của `rclone config show gdrive` (gồm dòng `[gdrive]`).
+   Ô đầu tiên của notebook do adapter chèn sẽ đọc secret, ghi `~/.config/rclone/rclone.conf` (không in ra),
+   đặt `root_folder_id` của thư mục Checkpoint và tải rclone v1.75.2 nếu chưa có.
+2. **Colab:** dùng `drive.mount` (skill `colab-coccoc-playwright/scripts/drive_checkpoint.py`); đường dẫn là
+   `/content/drive/MyDrive/Checkpoint/workflow-runs` = `gdrive:workflow-runs` với `root_folder_id`.
 3. **Discord:** chạy listener khi bạn sẵn sàng và gửi một `!task` thử để có receipt gửi/nhận thật.
-4. **Autopilot (tuỳ chọn):** `python scripts/p2_autopilot.py install` để các provider khác tự làm tiếp khi
-   session Claude dừng. Lệnh tạo scheduled task này đã bị chặn khi agent tự chạy, nên cần bạn chạy.
+4. **Autopilot:** `scripts/p2_autopilot.py` chỉ phục vụ việc thực thi kế hoạch nâng cấp P2 (đã xong, có
+   `P2_AUTOPILOT_COMPLETE`), nên không cần cài. Task thường đã có failover provider trong controller.

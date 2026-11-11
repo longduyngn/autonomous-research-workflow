@@ -535,6 +535,7 @@
     "base": "workflow-runs",
     "root_folder_id": "",
     "colab_mount_path": "/content/drive/MyDrive/workflow-runs",
+    "kaggle_secret": "RCLONE_GDRIVE_CONF",
     "keep_checkpoints": 3,
     "local_results_dir": "storage/results",
     "light_max_bytes": 52428800,

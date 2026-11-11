@@ -10,11 +10,53 @@ from pathlib import Path
 LIGHT_PATTERN = r'(?i)^[^/]*\.(?:json|jsonl|csv|txt|log|md|png|jpg|jpeg|svg)$'
 
 
-def _bootstrap_copy(workspace, entry, request_key, env):
+DEFAULT_KAGGLE_RCLONE_SECRET = 'RCLONE_GDRIVE_CONF'  # not RCLONE_CONFIG: rclone reads that env var as a file path
+DEFAULT_RCLONE_VERSION = '1.75.2'
+
+
+def rclone_bootstrap_lines(checkpoint_uri, storage):
+    """Notebook lines that write the rclone config from a Kaggle secret (never printed) and install rclone."""
+    if not str(checkpoint_uri or '').startswith('rclone:'):
+        return []
+    remote = str(checkpoint_uri)[len('rclone:'):].split(':', 1)[0]
+    if not re.fullmatch(r'[A-Za-z0-9_-]+', remote):
+        raise ValueError('Invalid rclone remote in checkpoint URI')
+    secret = storage.get('kaggle_secret') or DEFAULT_KAGGLE_RCLONE_SECRET
+    version = storage.get('rclone_version') or DEFAULT_RCLONE_VERSION
+    lines = [
+        'import io, pathlib, shutil, urllib.request, zipfile\n',
+        'try:\n',
+        '    from kaggle_secrets import UserSecretsClient\n',
+        f'    _conf = UserSecretsClient().get_secret({secret!r})\n',
+        'except Exception:\n',
+        f"    raise RuntimeError('Kaggle secret {secret} is missing or not attached to this notebook') from None\n",
+        "_rc = pathlib.Path.home() / '.config' / 'rclone' / 'rclone.conf'\n",
+        '_rc.parent.mkdir(parents=True, exist_ok=True)\n',
+        "_rc.write_text(_conf.strip() + '\\n')\n",
+        '_rc.chmod(0o600)\n',
+        'del _conf\n',
+    ]
+    root = storage.get('root_folder_id') if remote == storage.get('remote', 'gdrive') else ''
+    if root:
+        env_name = 'RCLONE_CONFIG_' + remote.upper().replace('-', '_') + '_ROOT_FOLDER_ID'
+        lines.append(f'os.environ[{env_name!r}] = {str(root)!r}\n')
+    url = f'https://downloads.rclone.org/v{version}/rclone-v{version}-linux-amd64.zip'
+    lines += [
+        "if not shutil.which('rclone'):\n",
+        f'    _z = zipfile.ZipFile(io.BytesIO(urllib.request.urlopen({url!r}, timeout=300).read()))\n',
+        "    _bin = pathlib.Path('/usr/local/bin/rclone')\n",
+        "    _bin.write_bytes(_z.read(next(n for n in _z.namelist() if n.endswith('/rclone'))))\n",
+        '    _bin.chmod(0o755)\n',
+    ]
+    return lines
+
+
+def _bootstrap_copy(workspace, entry, request_key, env, extra_lines=()):
     """Copy a v4 notebook with a first cell exporting controller identity (checkpoint URI, request key)."""
     source = Path(workspace) / entry
     notebook = json.loads(source.read_text(encoding='utf-8'))
     lines = ['import os\n'] + [f"os.environ[{k!r}] = {str(v)!r}\n" for k, v in sorted(env.items()) if v]
+    lines += list(extra_lines)
     notebook.setdefault('cells', []).insert(0, {'cell_type': 'code', 'id': 'wfboot01', 'metadata': {},
                                                 'source': lines, 'outputs': [], 'execution_count': None})
     target = Path(workspace) / '.workflow' / 'compute' / request_key / source.name
@@ -52,7 +94,8 @@ class KaggleJobAdapter:
     def submit(self, spec, request_key, job_id):
         entry = _bootstrap_copy(self.workspace, spec.entry, request_key,
                                 {'WORKFLOW_CHECKPOINT_URI': spec.checkpoint_uri, 'WORKFLOW_JOB_REQUEST_KEY': request_key,
-                                 'WORKFLOW_PARENT_JOB_ID': spec.parent_job_id})
+                                 'WORKFLOW_PARENT_JOB_ID': spec.parent_job_id},
+                                rclone_bootstrap_lines(spec.checkpoint_uri, (self.config or {}).get('storage', {})))
         args = {'notebook_path': entry, 'hardware': spec.hardware,
                 **{k: v for k, v in spec.config.items() if k in ('kaggle_kernel_slug', 'input_files', 'dataset_sources',
                                                                  'competition_sources', 'total', 'stall_seconds')}}

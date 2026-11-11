@@ -70,6 +70,23 @@ class KaggleAdapterTests(unittest.TestCase):
         self.assertIn('WORKFLOW_CHECKPOINT_URI', boot)
         self.assertIn('rclone:gdrive:workflow-runs/1/r/ckpt', boot)
 
+    def test_rclone_secret_bootstrap_writes_config_without_printing_and_sets_root_folder(self):
+        self.adapter.config = {'storage': {'remote': 'gdrive', 'root_folder_id': 'FOLDER123'}}
+        self.jobs.submit(self.spec(), 'k9')
+        staged = json.loads(next((self.ws / '.workflow/cloud_jobs').glob('*/stage/*.ipynb')).read_text(encoding='utf-8'))
+        boot = ''.join(''.join(c['source']) for c in staged['cells'][:2])
+        self.assertIn("get_secret('RCLONE_GDRIVE_CONF')", boot)
+        self.assertIn("RCLONE_CONFIG_GDRIVE_ROOT_FOLDER_ID'] = 'FOLDER123'", boot)
+        self.assertIn('rclone-v1.75.2-linux-amd64.zip', boot)
+        self.assertNotIn('print(_conf', boot)
+        compile(boot, 'boot', 'exec')
+
+    def test_non_rclone_uri_has_no_secret_bootstrap(self):
+        from core.compute_backends import rclone_bootstrap_lines
+        self.assertEqual(rclone_bootstrap_lines('/content/drive/MyDrive/Checkpoint/x', {}), [])
+        with self.assertRaises(ValueError):
+            rclone_bootstrap_lines('rclone:bad remote:x', {})
+
     def test_user_budget_is_passed(self):
         self.jobs.submit(self.spec(budget_seconds=7200), 'k2')
         self.assertIn('--timeout', self.cli.calls[0])

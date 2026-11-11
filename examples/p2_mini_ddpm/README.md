@@ -10,8 +10,9 @@ not a paper reproduction; no FID threshold is claimed.
 
 Environment set by the job adapters: `WORKFLOW_CHECKPOINT_URI` (e.g. `rclone:gdrive:workflow-runs/<task>/<run>`
 on Kaggle, or the mounted Drive path on Colab), `WORKFLOW_EXPERIMENT_JOB_ID`, `WORKFLOW_JOB_REQUEST_KEY`.
-On Kaggle the rclone token must be added by the user as a Kaggle secret and written to the rclone config at
-the start of the notebook; Colab uses `drive.mount`.
+On Kaggle the adapter's first cell reads the Kaggle secret `RCLONE_GDRIVE_CONF` (the output of
+`rclone config show gdrive`), writes the rclone config without printing it, sets the Drive root folder and installs
+rclone if missing; Colab uses `drive.mount`.
 
 Checks: `python -m unittest discover -s tests -p "test_p2_smoke_cpu.py"` (torch part runs only where torch is
 installed) and `python scripts/verify_p2_e2e.py --offline`.
