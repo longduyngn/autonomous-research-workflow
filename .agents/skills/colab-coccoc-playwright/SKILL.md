@@ -5,7 +5,8 @@ description: >-
   auto-confirm MCP connection, switch runtime (CPU/T4/L4/A100/TPU), sync and
   execute notebooks without 300s MCP timeouts, read live training logs, and
   disconnect runtime to save compute units.
-  Also checks Google Drive mount/consent and verifies an explicit off-VM checkpoint destination.
+  Also mounts Google Drive (optionally auto-approving the standard Drive consent in Cốc Cốc) and
+  verifies an explicit off-VM checkpoint destination.
 ---
 
 # Google Colab on Cốc Cốc — Playwright CDP & MCP Skill
@@ -57,7 +58,23 @@ Check first; reuse a working mount. After the user has granted consent, retry mo
 .conda\python.exe .agents/skills/colab-coccoc-playwright/scripts/drive_checkpoint.py --mount --probe --destination /content/drive/MyDrive/private-research/my-campaign --receipt storage/tools/drive-probe.json
 ```
 
-The helper returns `AUTH_REQUIRED` (exit 2) if the mount is unavailable; the user completes any Google account consent in Colab. It never clicks account-consent controls or reads/transfers auth tokens. Read-only status checks do not need another user confirmation. On a known runtime, pass `--expected-boot-id` to reject accidental VM changes before a mount/write.
+The helper returns `AUTH_REQUIRED` (exit 2) if the mount is unavailable. It never reads or transfers auth tokens.
+
+### Auto-approve Drive consent (opt-in)
+
+With `--auto-consent`, or `"colab_drive_consent": {"enabled": true, "account": ""}` in the config, a watcher
+([drive_consent.py](./scripts/drive_consent.py)) runs in Cốc Cốc while `drive.mount` waits and:
+- clicks only the Colab "Connect to Google Drive" dialog;
+- on an `https://accounts.google.com` popup opened by a Colab tab, picks the account (the configured `account`,
+  or the only one listed), ticks "Select all" and presses Continue/Allow;
+- never types: password, 2-step verification or sign-up pages return `LOGIN_REQUIRED`; several accounts without
+  `account` return `ACCOUNT_CHOICE_REQUIRED`. Both are reported to the user instead of being worked around.
+
+The receipt gets `auto_consent: {state, steps}` (step kinds and button labels only).
+
+```powershell
+.conda\python.exe .agents/skills/colab-coccoc-playwright/scripts/drive_checkpoint.py --mount --auto-consent --probe --destination /content/drive/MyDrive/Checkpoint/workflow-runs/_probe --receipt storage/tools/drive-probe.json
+``` Read-only status checks do not need another user confirmation. On a known runtime, pass `--expected-boot-id` to reject accidental VM changes before a mount/write.
 
 `READY` plus `publish_restore_verified=true` proves a small synthetic checkpoint was published and restored through that Drive mount. It is not a destructive VM-loss test or proof that the actual experiment is saving automatically. Configure the experiment's raw/state/manifest/cache snapshots at safe boundaries before a long run. Keep large cache sets in archives rather than thousands of loose Drive files.
 

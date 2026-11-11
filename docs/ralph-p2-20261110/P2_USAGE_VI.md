@@ -49,6 +49,9 @@ rồi cập nhật `config/provider_versions.json`.
    đặt `root_folder_id` của thư mục Checkpoint và tải rclone v1.75.2 nếu chưa có.
 2. **Colab:** dùng `drive.mount` (skill `colab-coccoc-playwright/scripts/drive_checkpoint.py`); đường dẫn là
    `/content/drive/MyDrive/Checkpoint/workflow-runs` = `gdrive:workflow-runs` với `root_folder_id`.
+   Popup cấp quyền Drive được tự bấm khi `colab_drive_consent.enabled=true` (hoặc `--auto-consent`): chỉ dialog
+   Drive của Colab và popup `accounts.google.com` do tab Colab mở; không bao giờ gõ mật khẩu/2FA (gặp thì báo
+   `LOGIN_REQUIRED`). Có nhiều tài khoản Google trong Cốc Cốc thì điền `colab_drive_consent.account`.
 3. **Discord:** chạy listener khi bạn sẵn sàng và gửi một `!task` thử để có receipt gửi/nhận thật.
 4. **Autopilot:** `scripts/p2_autopilot.py` chỉ phục vụ việc thực thi kế hoạch nâng cấp P2 (đã xong, có
    `P2_AUTOPILOT_COMPLETE`), nên không cần cài. Task thường đã có failover provider trong controller.

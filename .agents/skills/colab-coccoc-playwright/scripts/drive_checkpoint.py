@@ -1,6 +1,8 @@
 """Check Colab Drive readiness and optionally mount/probe an explicit destination.
 
-Does not click Google consent, inspect credentials, or browse Drive contents.
+With --auto-consent (or config colab_drive_consent.enabled) a watcher approves the standard Drive mount
+consent in the user's Cốc Cốc profile while the mount runs (see drive_consent.py); it never types passwords
+or handles verification. It does not inspect credentials or browse Drive contents.
 Each invocation owns a fresh control cell; it never replaces a scientific cell.
 """
 import argparse
@@ -47,7 +49,7 @@ if not _r['drive_mounted'] and {mount!r}:
     _r['drive_mounted']=_mounted()
 _r['state']='READY' if _r['drive_mounted'] else 'AUTH_REQUIRED'
 if not _r['drive_mounted']:
-    _r['next_action']='Complete the standard Colab Drive consent, then retry once; no grant is clicked by this helper.'
+    _r['next_action']='Complete the standard Colab Drive consent (or enable auto-consent), then retry once.'
 elif {probe!r}:
     _dest=pathlib.Path({destination!r})
     if not _dest.resolve().is_relative_to(pathlib.Path('/content/drive/MyDrive').resolve()):
@@ -76,6 +78,28 @@ _result=_r
 '''
 
 
+def start_consent_watch(timeout_sec,account=''):
+    import threading
+    sys.path.insert(0,str(Path(__file__).resolve().parent))
+    from drive_consent import run_consent_watch
+    from colab_playwright import CDP_URL,ensure_coccoc_cdp
+    ensure_coccoc_cdp()
+    stop=threading.Event();box={}
+    def _run():
+        try:
+            box['result']=run_consent_watch(CDP_URL,timeout_sec,account,stop)
+        except Exception as exc:
+            box['result']={'state':'WATCH_ERROR','error_type':type(exc).__name__}
+    thread=threading.Thread(target=_run,daemon=True);thread.start()
+    return stop,thread,box
+
+
+def stop_consent_watch(watcher):
+    stop,thread,box=watcher
+    stop.set();thread.join(timeout=15)
+    return box.get('result',{'state':'WATCH_STILL_RUNNING'})
+
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--mount',action='store_true',help='Use normal Colab mount flow; user handles any consent')
@@ -83,6 +107,8 @@ def main():
     p.add_argument('--probe',action='store_true',help='Publish and restore a small synthetic checkpoint')
     p.add_argument('--expected-boot-id')
     p.add_argument('--receipt',default='storage/tools/colab_drive_status.json')
+    p.add_argument('--auto-consent',action='store_true',help='Approve the Drive mount consent in Cốc Cốc while mounting')
+    p.add_argument('--consent-timeout',type=int,default=150)
     a=p.parse_args()
     body=build_body(a.destination,a.mount,a.probe,a.expected_boot_id)
     receipt=(ROOT/a.receipt).resolve()
@@ -95,7 +121,17 @@ def main():
     load_dotenv(ROOT/'.env');cfg=load_config()
     transport=ROOT/'storage/tools/drive-readiness-transport'/uuid.uuid4().hex
     tr=ColabAgentTransport(ROOT,transport,cfg,cloud=CloudTools(ROOT,cfg))
-    result=tr.rpc(body)
+    policy=cfg.get('colab_drive_consent') or {}
+    watcher=None
+    if a.mount and (a.auto_consent or policy.get('enabled')):
+        watcher=start_consent_watch(a.consent_timeout,policy.get('account',''))
+    try:
+        result=tr.rpc(body)
+    finally:
+        if watcher:
+            result_consent=stop_consent_watch(watcher)
+    if watcher:
+        result['auto_consent']=result_consent
     atomic_json(receipt,result)
     print(json.dumps(result,ensure_ascii=False))
     return 0 if result.get('state')=='READY' else 2

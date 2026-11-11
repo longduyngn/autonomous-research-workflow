@@ -546,5 +546,6 @@
       "token_env": "HF_TOKEN"
     },
     "description": "Shared off-machine store for checkpoints/heavy artifacts (D7). Drive via rclone; local gets light files + manifest only."
-  }
+  },
+  "colab_drive_consent": {"enabled": false, "account": ""}
 }
